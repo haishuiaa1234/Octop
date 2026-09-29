@@ -406,14 +406,39 @@ def env_bind_overrides() -> tuple[str | None, int | None]:
         except ValueError:
             # Do not log the raw env value.
             logger.warning("env %s is not int; ignoring override", "OCTOP_PORT")
+        # ``resolve_bind`` reads port 0 as "let the OS pick a free port", so the
+        # bindable range here is 0-65535. Anything outside it outranks a valid
+        # config.json port and kills startup inside ``socket.bind`` with a bare
+        # ``OverflowError``, which names neither the key nor the value.
+        if port is not None and not 0 <= port <= 65535:
+            logger.warning("env %s is out of range; ignoring override", "OCTOP_PORT")
+            port = None
     return host, port
 
 
 def load_config(path: Path) -> OctopConfig:
-    """Load ``config.json``; write defaults if absent. Apply env overrides."""
+    """Load ``config.json``; write defaults if absent. Apply env overrides.
+
+    A corrupt file raises with the path and parser position named, and is never
+    treated as empty: this is the same policy as ``infra/utils/json_file.py``,
+    duplicated here because ``octop.config`` must stay free of ``infra`` imports
+    (AGENTS.md §5). The message never echoes file contents — they hold database
+    credentials.
+    """
     file_defaults = _defaults_for_file()
     if path.exists():
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"{path} is not valid JSON (line {exc.lineno}, column {exc.colno});"
+                " fix it and retry — no settings were changed"
+            ) from exc
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"{path} must contain a JSON object, got {type(raw).__name__};"
+                " fix it and retry — no settings were changed"
+            )
         database_in_file = "database" in raw
     else:
         path.parent.mkdir(parents=True, exist_ok=True)

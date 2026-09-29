@@ -30,12 +30,39 @@ admin can clear the lockout with `POST /api/users/{id}/unlock-login`.
 ### Public endpoints (no token)
 
 `/api/docs`, `/api/openapi.json`, `/api/health`, `/api/setup/*`,
-`/api/auth/login`, `/api/auth/oidc/status`, `/api/auth/oidc/start`,
-`/api/auth/oidc/callback`, `/api/auth/oidc/exchange`,
+`/api/auth/login`, `/api/auth/captcha`, `/api/auth/oidc/status`, `/api/auth/oidc/start`,
+`/api/auth/oidc/callback`, `/api/auth/oidc/exchange`, `/api/auth/oauth/status`,
+`/api/auth/oauth/start`, `/api/auth/oauth/callback`, `/api/auth/oauth/exchange`,
 `/api/connectors/oauth/callback`, and `/api/internal/mcp/*`. All other routes are JWT-gated by
 `api/middleware/jwt_auth.py`; the setup lockdown middleware
 (`api/middleware/setup_lockdown.py`) additionally blocks non-setup
 routes until the wizard finishes.
+
+Password login may require a vendor captcha token. `GET /api/auth/captcha`
+returns `{provider: "slider"}` by default (dashboard slider only; no server
+check). When a strong provider is active (`turnstile`, `hcaptcha`,
+`recaptcha`, `recaptcha-v3`, `tencent`), `POST /api/auth/login` must include
+`captcha_token` (max 4096 characters; for `tencent` the dashboard sends the
+callback pair as `ticket:randstr`, verified via GET with the client IP).
+Captcha failures do not increment
+login lockout. OIDC login is unchanged. A request for an unknown username
+with a garbage token still triggers one outbound siteverify request (bounded
+by a 10s timeout and the token length limit); a known locked user is
+rejected before siteverify.
+
+Offline recovery: delete the `captcha.settings` row via local CLI /
+`settings_repo` if a settings-sourced strong provider is unreachable. If
+the process refused to start because `OCTOP_CAPTCHA_PROVIDER` is strong
+without both keys and no readable settings blob, edit `~/.octop/env` on
+disk — the dashboard and `PUT /api/envs` are unreachable until the
+process starts. `GET /api/envs` redacts `OCTOP_CAPTCHA_SECRET` as
+`********`; sending that sentinel on PUT keeps the on-disk value.
+
+If you serve the dashboard behind a CSP, allow
+`challenges.cloudflare.com`; `js.hcaptcha.com`, `newassets.hcaptcha.com`,
+`api.hcaptcha.com`; `www.google.com`, `www.gstatic.com`;
+`turing.captcha.qcloud.com`, `captcha.qq.com`, `ssl.captcha.qq.com`. Octop
+does not set these headers itself.
 
 ## Setup & auth
 
@@ -50,7 +77,8 @@ routes until the wizard finishes.
 | `POST`   | `/setup/resume-wizard` | public | Issue a fresh wizard token mid-setup |
 | `POST`   | `/setup/test-provider` | public | Ping a provider draft (kind/base_url/api_key/model) |
 | `POST`   | `/setup/finish` | public | Finalise setup and unlock the rest of the API |
-| `POST`   | `/auth/login` | public | body `{username, password}` (`username` may be email) → `{access_token, role, user, ...}` |
+| `GET`    | `/auth/captcha` | public | `{provider, site_key?}` for the login widget; 503 while setup is required |
+| `POST`   | `/auth/login` | public | body `{username, password, captcha_token?}` (`username` may be email) → `{access_token, role, user, ...}` |
 | `GET`    | `/auth/oidc/status` | public | OIDC login availability and provider display name |
 | `POST`   | `/auth/oidc/start` | public | body `{redirect_after?}` → identity-provider authorization URL |
 | `GET`    | `/auth/oidc/callback` | public | Identity-provider callback; redirects to dashboard login completion |
@@ -58,6 +86,15 @@ routes until the wizard finishes.
 | `GET`    | `/auth/oidc/config` | admin | OIDC provider configuration and callback URL; client secret is omitted |
 | `PUT`    | `/auth/oidc/config` | admin | Write OIDC provider configuration; `client_secret` is write-only |
 | `POST`   | `/auth/oidc/config/test` | admin | Verify configured discovery metadata and JWKS endpoint |
+| `GET`    | `/auth/oauth/status` | public | `{providers:[{kind, display_name, enabled}]}` |
+| `POST`   | `/auth/oauth/start` | public | body `{kind, redirect_after?}` → authorization URL |
+| `GET`    | `/auth/oauth/callback` | public | App OAuth callback (`code` or DingTalk `authCode`); same completion page as OIDC |
+| `POST`   | `/auth/oauth/exchange` | public | Same one-time code exchange as `/auth/oidc/exchange` |
+| `POST`   | `/auth/oauth/bind/start` | user | body `{kind, redirect_after?}` → bind the identity to the current user |
+| `POST`   | `/auth/oauth/unbind` | user | Unlink one SSO identity by `kind` (requires a local password when it is the last login method) |
+| `GET`    | `/auth/oauth/providers/{kind}` | admin | Provider config; `kind` is `oidc`, `feishu`, `dingtalk`, or `wecom` |
+| `PUT`    | `/auth/oauth/providers/{kind}` | admin | Upsert provider config; `client_secret` is write-only; WeCom uses `extra.agent_id` |
+| `POST`   | `/auth/oauth/providers/{kind}/test` | admin | Test provider credentials |
 | `POST`   | `/auth/logout` | user | `204` |
 | `GET`    | `/auth/me` | user | `{id, username, role, display_name, locale, ...}` |
 | `PATCH`  | `/auth/me` | user | body `{display_name?, locale?, ...}` |
@@ -89,7 +126,7 @@ routes until the wizard finishes.
 | `POST`   | `/agents/{id}/stop` | owner | `204` |
 | `POST`   | `/agents/{id}/reload` | owner | `204` (rebuild harness runtime) |
 | `POST`   | `/agents/{id}/read` | owner | `204` (mark unread badge cleared) |
-| `GET`    | `/agents/{id}/status` | owner | `{state, last_error?, ...}` |
+| `GET`    | `/agents/{id}/status` | owner | `{state, last_error?, memory_maintenance?, ...}` |
 | `POST`   | `/agents/from-expert/{expert_id}` | user | body `{name, ...}` → `201` (creates from bundled expert template) |
 | `GET`    | `/agents/{id}/tool-settings` | owner | built-in + installed plugin tools with enable / disableable / available flags |
 | `PUT`    | `/agents/{id}/tool-settings` | owner | body `{disabled_builtin: string[], plugins?}` — persists denylist + plugin flags (hot-sync, no reload) |
@@ -110,10 +147,10 @@ destination synchronized after the request completes.
 
 | Path | Auth | Notes |
 |------|------|-------|
-| `WS /agents/{id}/chat/ws?token=<jwt>` | owner | Primary dashboard turn endpoint. Send `{"type":"user_turn", ...}` frames; server replies with harness stream chunks ending in `{"type":"done"}` or `{"type":"error","message":"..."}`. `{"type":"ping"}` → `{"type":"pong"}`. `{"type":"subscribe","thread_id"}` → `{"type":"turn_status","thread_id","active"}` (attach to an in-flight turn without cancelling on disconnect). `{"type":"cancel","thread_id"}` stops the active turn (explicit stop; disconnect alone does **not** cancel). |
+| `WS /agents/{id}/chat/ws?token=<jwt>` | owner | Primary dashboard turn endpoint. Send `{"type":"user_turn", ...}` frames (optional `hitl_policy` is a thread-scoped tool-approval bypass); server replies with harness stream chunks ending in `{"type":"done"}` or `{"type":"error","message":"..."}`. `{"type":"ping"}` → `{"type":"pong"}`. `{"type":"subscribe","thread_id"}` → `{"type":"turn_status","thread_id","active"}` (attach to an in-flight turn without cancelling on disconnect). `{"type":"cancel","thread_id"}` stops the active turn (explicit stop; disconnect alone does **not** cancel). |
 | `GET /agents/{id}/chat/welcome` | agent access | `{welcome_message, quick_prompts, task_examples}`; `task_examples` is `null` when the workspace field is absent |
 | `POST /agents/{id}/chat/polish` | owner | body `{text, default_model?}` → `{text}` (one-shot prompt refinement) |
-| `POST /agents/{id}/chat/hitl/resume` | owner | body `{thread_id, decisions: [...]}` → SSE chunk stream; finishes with `{"type":"done"}` |
+| `POST /agents/{id}/chat/hitl/resume` | owner | body `{thread_id, decisions: [...], hitl_policy?}` → SSE chunk stream; finishes with `{"type":"done"}`. Optional `hitl_policy` (`ask` / `allow_all` / `allow_tools`) is a thread-scoped bypass and does not change global tool-approval settings. |
 
 ### Legacy SSE
 
@@ -130,6 +167,15 @@ because each request is a one-shot continuation.
 | `PATCH`  | `/agents/{id}/chat/sessions/{thread_id}` | owner | body `{title?, pinned?}` → updated row |
 | `DELETE` | `/agents/{id}/chat/sessions/{thread_id}` | owner | `204` (archives the active row) |
 | `GET`    | `/agents/{id}/chat/sessions/{thread_id}/history` | owner | paginated message history; `turn_active` tells a reconnecting client whether to re-`subscribe` over the chat WebSocket |
+
+**Tool result blocks.** `tool_result` blocks in history (and `tool_result`
+frames on the chat WebSocket) carry the tool's return value in `output`. When a
+plugin returns a large `octop_ui` payload, the backend offloads the envelope's
+`data` field: `output` then contains the slim envelope with
+`data_ref: "artifact"`, and the full payload is on the block's `artifact` key
+(absent otherwise). An explicit `data` key always takes precedence over
+`data_ref` when both appear. Clients that render plugin UIs must resolve
+`data_ref` from `artifact`; clients that only read `output` keep working.
 
 ### Trajectory ledger
 
@@ -164,6 +210,8 @@ because each request is a one-shot continuation.
 |--------|------|------|-------|
 | `GET`    | `/settings/timezone` | user | process-level `{timezone}` from `default_timezone` |
 | `GET`    | `/settings/upload` | user | `{max_upload_mb, max_upload_bytes}` from `max_upload_mb` |
+| `GET`    | `/settings/captcha` | `captcha` | `{active, available, providers, source, v3_min_score}`; secrets omitted |
+| `PUT`    | `/settings/captcha` | `captcha` | merge `{active?, providers?}`; empty secret keeps ciphertext; `null` removes a pair |
 | `GET`    | `/cron/settings` | user | compat alias of `/settings/timezone` |
 | `GET`    | `/agents/{aid}/cron/examples` | agent access | `{task_examples}` from workspace `.octop/manifest.json` (`{zh,en}` string arrays, display-normalized to 3 or 6); `null` if the field is absent (dashboard keeps default cards). Prefer `GET /agents/{aid}/chat/welcome` which includes the same field. |
 | `GET`    | `/agents/{aid}/cron` | owner only | list cron rows; non-owners (including admin) get `[]` |
@@ -198,7 +246,7 @@ the server derives one from `prompt`.
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
-| `GET` | `/models/presets` | user | provider templates from `harness-agent` |
+| `GET` | `/models/presets` | user | provider templates from `octop-harness` |
 | `GET` | `/models` | user | resolved models across enabled providers |
 | `GET` | `/models/active` | user | `{provider_name, model}` |
 | `PUT` | `/models/active` | admin | body `{provider_name, model}` |
@@ -238,7 +286,7 @@ reloads running agents so the image and video tools receive the new configuratio
 | `GET`    | `/personas` | user | `[{code}, ...]` (compat shim) |
 | `GET`    | `/personas/{code}` | user | rendered template (compat shim) |
 
-Persona content lives in `src/octop/infra/agents/mbti_profiles.py` —
+Persona content lives in `src/octop/infra/agents/persona/mbti_profiles.py` —
 see [Personas](./personas.md).
 
 ## Experts
@@ -247,7 +295,7 @@ see [Personas](./personas.md).
 |--------|------|------|-------|
 | `GET`    | `/experts` | user | bundled expert catalog (includes `task_examples` `{zh,en}` when present) |
 | `GET`    | `/experts/{expert_id}` | user | full expert template (SOUL.md, skills, files, `task_examples`) |
-| `POST`   | `/agents/from-expert/{expert_id}` | user | body `{name, locale?, ...}` → `201` |
+| `POST`   | `/agents/from-expert/{expert_id}` | user | body `{name, locale?, quick_prompts?, ...}` → `201`; optional `quick_prompts` overwrites workspace cards after seed |
 
 Bundled experts live in `src/octop/infra/agents/experts/library/`
 (en/zh divisions); the catalog is locale-aware via
@@ -349,13 +397,14 @@ for non-`/` paths.
 Custom MCP OAuth (streamable HTTP, public HTTPS URL only): Octop discovers the authorization
 server from the MCP URL (401 / RFC 9728 protected-resource metadata), requires dynamic client
 registration (DCR), stores encrypted tokens in the custom MCP spec, and injects `Authorization:
-Bearer` when loading tools. Loopback MCP URLs do not use remote OAuth discovery.
+Bearer` when loading tools. Loopback and LAN MCP URLs may use HTTP and do not use remote OAuth
+discovery.
 
-## Internal MCP (harness agents)
+## Internal MCP (octop-harness agents)
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
-| `POST`/`GET`/… | `/internal/mcp/*` | public (mTLS / network-isolated) | MCP gateway used by harness agents (not the dashboard) |
+| `POST`/`GET`/… | `/internal/mcp/*` | public (mTLS / network-isolated) | MCP gateway used by octop-harness agents (not the dashboard) |
 
 ## Observability & security
 
@@ -387,7 +436,7 @@ endpoint (public, mounted directly in `api/app.py`).
 |--------|------|------|-------|
 | `WS`/`POST`/`GET`/… | `/agents/{aid}/terminal` | owner | AI-assisted remote PTY |
 | `GET` | `/agents/{aid}/terminal/context` | owner | recent terminal context for the AI helper |
-| `WS`/`POST`/`GET`/… | `/browser/...` | user | harness-browser sessions, live stream, record/replay |
+| `WS`/`POST`/`GET`/… | `/browser/...` | user | octop-browser sessions, live stream, record/replay |
 | `POST` | `/browser/shutdown` | user | stop the current user's Octop-managed Chrome |
 | `POST` | `/agents/{aid}/upload` | user | multipart upload → `{workspace}/inbound/` |
 | `POST` | `/agents/{aid}/files/access-urls` | user | refresh inbound media URLs (signed) |

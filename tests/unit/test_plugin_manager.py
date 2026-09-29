@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harness_agent.plugins import PluginRegistry
+from octop_harness.plugins import PluginRegistry
 
 from octop.infra.agents.plugins.manager import (
     PluginManager,
     normalize_plugin_download_url,
+    parse_plugin_group,
     parse_plugin_icon,
     parse_plugin_ui_meta,
 )
@@ -289,3 +290,79 @@ def test_parse_plugin_icon(tmp_path: Path) -> None:
     )
     assert parse_plugin_icon(plugin_dir) == "🧩"
     assert parse_plugin_icon(tmp_path / "missing") is None
+
+    file_icon_dir = tmp_path / "file-icon"
+    file_icon_dir.mkdir()
+    (file_icon_dir / "icon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"/>',
+        encoding="utf-8",
+    )
+    (file_icon_dir / "plugin.yaml").write_text(
+        "\n".join(
+            [
+                "id: file-icon",
+                "version: 0.1.0",
+                "name: File Icon",
+                "kind: tool",
+                "entry: main.py",
+                "icon: icon.svg",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    assert parse_plugin_icon(file_icon_dir) == "/api/plugins/file-icon/ui/icon.svg"
+
+
+def test_parse_plugin_group(tmp_path: Path) -> None:
+    plugin_dir = tmp_path / "grouped"
+    plugin_dir.mkdir()
+    (plugin_dir / "plugin.yaml").write_text(
+        "\n".join(
+            [
+                "id: grouped",
+                "version: 0.1.0",
+                "name: Grouped",
+                "kind: tool",
+                "entry: main.py",
+                "group: games",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    assert parse_plugin_group(plugin_dir) == "games"
+    assert parse_plugin_group(tmp_path / "missing") is None
+
+
+def test_set_enabled_refuses_corrupt_config_and_preserves_bytes(tmp_path: Path) -> None:
+    """issue #730: the dashboard toggle must not wipe an unparseable config.json."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text("{}", encoding="utf-8")
+    mgr = PluginManager(plugins_dir=tmp_path / "plugins", config_path=config_path)
+    mgr.install_path(_FIXTURE, force=True)
+
+    corrupt = '{"bind_host": "0.0.0.0", "database": {"driver": "postgresql"},}'
+    config_path.write_text(corrupt, encoding="utf-8")
+    with pytest.raises(OctopError) as excinfo:
+        mgr.set_enabled("echo-tool", False)
+    assert excinfo.value.code is ErrorCode.CONFIG_FILE_CORRUPT
+    assert config_path.read_text(encoding="utf-8") == corrupt
+
+
+def test_set_enabled_preserves_unrelated_keys(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "bind_host": "0.0.0.0",
+                "database": {"driver": "postgresql", "host": "db.internal"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    mgr = PluginManager(plugins_dir=tmp_path / "plugins", config_path=config_path)
+    mgr.install_path(_FIXTURE, force=True)
+    mgr.set_enabled("echo-tool", False)
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    assert data["bind_host"] == "0.0.0.0"
+    assert data["database"] == {"driver": "postgresql", "host": "db.internal"}
+    assert data["plugins"]["echo-tool"]["enabled"] is False

@@ -1,4 +1,4 @@
-"""WebSocket browser screencast — attaches to harness-browser sessions.
+"""WebSocket browser screencast — attaches to octop-browser sessions.
 
 Wire protocol matches the dashboard ``useBrowserStream`` hook (screencast)
 and ``useBrowserSessionState`` (listen-only status):
@@ -56,10 +56,16 @@ _FRAME_INTERVAL_S = 0.25  # ~4 fps
 
 
 def _normalize_nav_url(raw: str) -> str:
+    """Prefix a host with ``https://`` unless it already has an http(s) scheme.
+
+    Matches :func:`octop.infra.utils.url.normalize_nav_url`, including the
+    case-insensitive scheme check: ``HTTPS://host`` must not become
+    ``https://HTTPS://host``.
+    """
     t = raw.strip()
     if not t:
         return ""
-    if t.startswith(("http://", "https://")):
+    if t.lower().startswith(("http://", "https://")):
         return t
     return f"https://{t}"
 

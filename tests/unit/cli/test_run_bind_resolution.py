@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from click.testing import CliRunner
 
-from octop.cli.commands.run import resolve_bind
+from octop.cli.commands.run import _save_configfile_overrides, resolve_bind, run
+from octop.infra.errors import ErrorCode, OctopError
 
 
 @pytest.fixture
@@ -52,6 +55,96 @@ def test_invalid_env_port_falls_back_to_file(
     assert resolve_bind(None, None) == (None, 8088)
 
 
+@pytest.mark.parametrize("value", ["70000", "-1"])
+def test_out_of_range_env_port_falls_back_to_file(
+    octop_home: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    _write_config(octop_home, port=8088)
+    monkeypatch.setenv("OCTOP_PORT", value)
+    assert resolve_bind(None, None) == (None, 8088)
+
+
+def test_zero_env_port_still_requests_an_os_assigned_port(
+    octop_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(octop_home, port=8088)
+    monkeypatch.setenv("OCTOP_PORT", "0")
+    assert resolve_bind(None, None) == (None, 0)
+
+
 def test_legacy_host_key(octop_home: Path) -> None:
     _write_config(octop_home, host="192.168.1.10", port=1234)
     assert resolve_bind(None, None) == ("192.168.1.10", 1234)
+
+
+# --- issue #730: a corrupt config.json must never be treated as empty --------
+
+
+def _corrupt(text: str) -> str:
+    """Append a trailing comma before the closing brace (classic hand-edit slip)."""
+    stripped = text.rstrip()
+    assert stripped.endswith("}")
+    return stripped[:-1].rstrip() + ",}"
+
+
+def test_corrupt_config_raises_instead_of_silently_using_defaults(octop_home: Path) -> None:
+    (octop_home / "config.json").write_text('{"bind_host": "0.0.0.0",}', encoding="utf-8")
+    with pytest.raises(OctopError) as excinfo:
+        resolve_bind(None, None)
+    assert excinfo.value.code is ErrorCode.CONFIG_FILE_CORRUPT
+
+
+def test_save_overrides_on_corrupt_config_preserves_bytes(octop_home: Path) -> None:
+    cfg = octop_home / "config.json"
+    corrupt = _corrupt(
+        json.dumps({"bind_host": "0.0.0.0", "database": {"driver": "postgresql"}}, indent=2)
+    )
+    cfg.write_text(corrupt, encoding="utf-8")
+    with pytest.raises(OctopError) as excinfo:
+        _save_configfile_overrides(None, 8088)
+    assert excinfo.value.code is ErrorCode.CONFIG_FILE_CORRUPT
+    assert cfg.read_text(encoding="utf-8") == corrupt
+
+
+def test_save_overrides_merges_without_dropping_keys(octop_home: Path) -> None:
+    cfg = octop_home / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "bind_host": "0.0.0.0",
+                "database": {"driver": "postgresql", "host": "db.internal"},
+                "log_level": "debug",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _save_configfile_overrides(None, 8088)
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["port"] == 8088
+    assert data["bind_host"] == "0.0.0.0"
+    assert data["database"] == {"driver": "postgresql", "host": "db.internal"}
+    assert data["log_level"] == "debug"
+
+
+def test_run_cli_on_corrupt_config_refuses_and_preserves_file(octop_home: Path) -> None:
+    """POC regression: ``octop run --port`` used to wipe config.json to one key."""
+    cfg = octop_home / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "bind_host": "0.0.0.0",
+                "database": {"driver": "postgresql", "host": "db.internal"},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    corrupt = _corrupt(cfg.read_text(encoding="utf-8"))
+    cfg.write_text(corrupt, encoding="utf-8")
+
+    with patch("octop.cli.commands.run._run_uvicorn") as mocked:
+        result = CliRunner().invoke(run, ["--port", "8088"])
+
+    assert result.exit_code != 0
+    assert not mocked.called
+    assert cfg.read_text(encoding="utf-8") == corrupt

@@ -45,6 +45,7 @@ import {
   Utensils,
   Coffee,
   ShoppingBag,
+  Users,
 } from "lucide-react";
 import { useAuthImageSrc } from "../../../hooks/useAuthImageSrc";
 import { needsAuthBlobFetch } from "../../../utils/toolMediaBlocks";
@@ -54,6 +55,7 @@ const iconMap: Record<string, (size: number) => ReactNode> = {
   globe: (size) => <Globe size={size} />,
   "book-open": (size) => <BookOpen size={size} />,
   user: (size) => <User size={size} />,
+  users: (size) => <Users size={size} />,
   rocket: (size) => <Rocket size={size} />,
   fingerprint: (size) => <Fingerprint size={size} />,
   "file-text": (size) => <FileText size={size} />,
@@ -109,7 +111,7 @@ export function ExpertIcon({
   size?: number;
   className?: string;
 }): ReactNode {
-  const url = iconUrl?.trim();
+  const url = resolveExpertAvatarUrl(iconUrl);
   if (url) {
     return (
       <ExpertIconImage
@@ -121,6 +123,12 @@ export function ExpertIcon({
     );
   }
   return iconForName(iconName, size);
+}
+
+/** Trust the API ``icon_url``; do not invent scene portraits on the client. */
+export function resolveExpertAvatarUrl(iconUrl?: string | null): string | null {
+  const url = iconUrl?.trim() || "";
+  return url || null;
 }
 
 function ExpertIconImage({
@@ -138,7 +146,10 @@ function ExpertIconImage({
   if (!src || loadState !== "ready") {
     return iconForName(iconName, size);
   }
-  const cover = needsAuthBlobFetch(url) || url.startsWith("blob:");
+  const cover =
+    needsAuthBlobFetch(url) ||
+    url.startsWith("blob:") ||
+    url.includes("/experts/avatars/");
   return (
     <img
       src={src}

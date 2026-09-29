@@ -34,7 +34,7 @@ from octop.infra.utils.paths import PathLayout
 
 if TYPE_CHECKING:
     from octop.infra.auth.sso.service import SsoService
-    from octop.infra.trajectory.service import TrajectoryService
+    from octop.infra.history.trajectory.service import TrajectoryService
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +234,7 @@ class AppRuntime:
             care_push_repo=services.repos.care_push_repo,
         )
         if self.trajectory_service is not None:
-            from octop.infra.trajectory.store import TrajectoryStore  # noqa: PLC0415
+            from octop.infra.history.trajectory.store import TrajectoryStore  # noqa: PLC0415
 
             self.trajectory_service.replace_store(TrajectoryStore(services.trajectory_event_repo))
 
@@ -322,6 +322,9 @@ class OctopServer:
         db = open_database(config, self.paths)
         run_migrations(db)
         self.services = build_shared_services(db=db, paths=self.paths, config=config)
+        from octop.infra.auth.captcha import boot_from_services  # noqa: PLC0415
+
+        boot_from_services(self.services.settings_repo, self.services.secret_repo)
         self._ensure_jwt_secret()
         await self._boot_runtime(config)
         self._started = True
@@ -346,6 +349,9 @@ class OctopServer:
             db.close()
             raise
         self.services = build_shared_services(db=db, paths=self.paths, config=config)
+        from octop.infra.auth.captcha import boot_from_services  # noqa: PLC0415
+
+        boot_from_services(self.services.settings_repo, self.services.secret_repo)
         self._ensure_jwt_secret()
         await self._boot_runtime(config)
         logger.info(
@@ -372,9 +378,9 @@ class OctopServer:
             plugin_manager=self.plugin_manager,
         )
 
-        from octop.infra.trajectory.live import TrajectoryLiveBus  # noqa: PLC0415
-        from octop.infra.trajectory.service import TrajectoryService  # noqa: PLC0415
-        from octop.infra.trajectory.store import TrajectoryStore  # noqa: PLC0415
+        from octop.infra.history.trajectory.live import TrajectoryLiveBus  # noqa: PLC0415
+        from octop.infra.history.trajectory.service import TrajectoryService  # noqa: PLC0415
+        from octop.infra.history.trajectory.store import TrajectoryStore  # noqa: PLC0415
 
         history_archive = None
         trajectory_store = TrajectoryStore(self.services.trajectory_event_repo)
@@ -386,7 +392,9 @@ class OctopServer:
         ):
             from octop.infra.history.service import HistoryArchive  # noqa: PLC0415
             from octop.infra.history.store import HistoryStore  # noqa: PLC0415
-            from octop.infra.history.trajectory import ArchiveTrajectoryStore  # noqa: PLC0415
+            from octop.infra.history.trajectory_compat import (
+                ArchiveTrajectoryStore,  # noqa: PLC0415
+            )
 
             identity = str(config.database.resolve_sqlite_path(self.paths.root).resolve())
             if not config.database.is_sqlite:
@@ -445,7 +453,10 @@ class OctopServer:
         install_auto_backup_job(cron_mgr, server=self)
 
         registry.set_cron_manager(cron_mgr)
-        registry.set_team_processor(gateway.processor)
+        registry.set_team_processor(gateway.processor.teams)
+        hitl_session_store = gateway.processor.hitl_coordinator.session_policies
+        hitl_session_store.replace_repo(self.services.repos.thread_repo)
+        registry.set_hitl_session_store(hitl_session_store)
 
         care_service = ProactiveCareService(
             gateway=gateway,
@@ -568,6 +579,11 @@ class OctopServer:
 
         level = os.environ.get("OCTOP_LOG_LEVEL", "info").upper()
         root.setLevel(getattr(logging, level, logging.INFO))
+        if root.level > logging.DEBUG:
+            # httpx logs full request URLs at INFO, leaking query-string
+            # secrets (OAuth access_token, corpsecret) into the log file.
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+            logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     def _ensure_jwt_secret(self) -> None:
         assert self.services is not None

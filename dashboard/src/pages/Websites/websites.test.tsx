@@ -95,6 +95,7 @@ describe("external websites", () => {
 
   it("keeps literal website names and separates admin navigation", () => {
     const sections = websiteNavSections([site], false);
+    expect(sections[0].id).toBe("websites");
     expect(sections[0].items[0].label).toBe("项目进度");
     expect(
       sections

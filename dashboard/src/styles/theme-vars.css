@@ -14,6 +14,7 @@ html[data-theme="light"] {
   --fn-bg-tertiary: #f0f1f3;
   --fn-bg-elevated: #ffffff;
   --fn-bg-layout: #f5f6f8;
+  --fn-bg-container: #ffffff;
   --fn-bg-hover: rgba(232, 93, 117, 0.04);
   --fn-bg-active: rgba(232, 93, 117, 0.08);
   --fn-bg-selected: rgba(232, 93, 117, 0.06);
@@ -135,8 +136,8 @@ html[data-theme="light"] {
 
   /* ---- Header ---- */
   --fn-header-height: 56px;
-  --fn-header-bg: rgba(255, 255, 255, 0.95);
-  --fn-header-blur: 12px;
+  --fn-header-bg: #ffffff;
+  --fn-header-blur: 0px;
 
   /* Chat conversation title + dock (browser/file) chrome — keep in sync */
   --fn-chat-chrome-height: 57px;
@@ -167,6 +168,7 @@ html[data-theme="dark"] {
   --fn-bg-tertiary: #222222;
   --fn-bg-elevated: #1e1e1e;
   --fn-bg-layout: #0e0e0e;
+  --fn-bg-container: #141414;
   --fn-bg-hover: rgba(232, 93, 117, 0.08);
   --fn-bg-active: rgba(232, 93, 117, 0.14);
   --fn-bg-selected: rgba(232, 93, 117, 0.1);
@@ -285,8 +287,8 @@ html[data-theme="dark"] {
 
   /* ---- Header ---- */
   --fn-header-height: 56px;
-  --fn-header-bg: rgba(14, 14, 14, 0.9);
-  --fn-header-blur: 12px;
+  --fn-header-bg: #0e0e0e;
+  --fn-header-blur: 0px;
   --fn-chat-chrome-height: 57px;
   --fn-chat-divider: var(--fn-border-primary);
   --fn-chat-chrome-divider-inset: 8px;

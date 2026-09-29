@@ -21,5 +21,7 @@ export function websiteNavSections(
       labelKey: "websites.manage",
       icon: <Settings2 size={16} strokeWidth={1.8} />,
     });
-  return items.length ? [{ groupKey: "websites.title", items }] : [];
+  return items.length
+    ? [{ id: "websites", groupKey: "websites.title", items }]
+    : [];
 }

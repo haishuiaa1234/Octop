@@ -5,12 +5,12 @@ import { Navigate, useLocation } from "react-router-dom";
 const ExpertsPage = lazy(() => import("../pages/Experts"));
 const CronJobsPage = lazy(() => import("../pages/Control/CronJobs"));
 const ConnectorsPage = lazy(() => import("../pages/Agent/Connectors"));
-const ACPPage = lazy(() => import("../pages/Agent/ACP"));
 const SkillPackagesPage = lazy(() => import("../pages/SkillPackages"));
 const KnowledgeBasesPage = lazy(() => import("../pages/KnowledgeBases"));
 const PersonalizationPage = lazy(
   () => import("../pages/Agent/Personalization"),
 );
+const ACPPage = lazy(() => import("../pages/Agent/ACP"));
 const TokenUsagePage = lazy(() => import("../pages/Control/TokenUsage"));
 
 // Lazy-loaded pages — Control
@@ -58,7 +58,6 @@ export const pathToKey: Record<string, string> = {
   "/connectors": "connectors",
   "/skill-packages": "skill-packages",
   "/knowledge-bases": "knowledge-bases",
-  "/acp": "acp",
   "/personalization": "personalization",
   "/personalization/skills": "personalization",
   "/personalization/tools": "personalization",
@@ -71,6 +70,7 @@ export const pathToKey: Record<string, string> = {
   "/token-usage": "token-usage",
   "/agent-config": "agent-config",
   // Control
+  "/acp": "acp",
   "/channels": "channels",
   "/workbench": "workbench",
   "/workbench/terminal": "workbench",
@@ -164,6 +164,10 @@ export const routeConfigs: RouteConfig[] = [
   { path: "/connectors", element: <ConnectorsPage /> },
   { path: "/skill-packages", element: <SkillPackagesPage /> },
   { path: "/knowledge-bases", element: <KnowledgeBasesPage /> },
+  {
+    path: "/personalization/acp",
+    element: <RedirectPreserveSearch to="/acp" />,
+  },
   { path: "/personalization/*", element: <PersonalizationPage /> },
   {
     path: "/skills",
@@ -223,7 +227,7 @@ export const routeConfigs: RouteConfig[] = [
   { path: "/admin/users", element: <OctopAdminUsersPage /> },
   {
     path: "/admin/sso",
-    element: <Navigate to="/admin/users?tab=sso" replace />,
+    element: <Navigate to="/admin/users?tab=oidc" replace />,
   },
   {
     path: "/admin/shared-models",

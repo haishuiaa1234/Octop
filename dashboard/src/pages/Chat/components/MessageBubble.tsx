@@ -46,16 +46,25 @@ import MessageSender, { ExpertMessageAvatar } from "./MessageSender";
 import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import { useAgent } from "../../../context/AgentContext";
 import {
+  isTeamAgent,
+  isTeamHostSpeaker as isTeamHostSpeakerId,
+} from "../../../utils/teamAgent";
+import {
   accountDisplayName,
   accountInitials,
 } from "../utils/accountDisplayName";
-import { extractAskQuestions, isAskHitl } from "../../../api/types/hitl";
+import {
+  extractAskQuestions,
+  isAskHitl,
+  type HitlDecisionHandler,
+} from "../../../api/types/hitl";
 import styles from "../index.module.less";
 import {
   DefaultToolRenderer,
   builtinPluginHost,
   createPluginUiHost,
   parseOctopToolOutput,
+  resolvePluginUiData,
   resolveToolRenderer,
   useToolRendererVersion,
   type ToolRenderProps,
@@ -78,9 +87,7 @@ interface MessageBubbleProps {
   onForkAssistantMessage?: (messageId: string) => void;
   forkDisabled?: boolean;
   forkDisabledHint?: string;
-  onHitlDecision?: (
-    decisions: Array<{ type: string; message?: string }>,
-  ) => void;
+  onHitlDecision?: HitlDecisionHandler;
 
   /** When true, the outer bubble uses reduced spacing (part of a group). */
   compact?: boolean;
@@ -373,6 +380,11 @@ export function ToolDetailsInline({
     () => parseOctopToolOutput(toolData.output),
     [toolData.output],
   );
+  // Offloaded octop_ui payloads: explicit data wins; data_ref → artifact.
+  const resolvedData = useMemo(
+    () => resolvePluginUiData(parsed, toolData.artifact, toolData.output),
+    [parsed, toolData.artifact, toolData.output],
+  );
   const pluginId =
     toolData.pluginId ?? lookupPluginIdForTool(toolData.name) ?? "builtin";
 
@@ -409,12 +421,7 @@ export function ToolDetailsInline({
     callId: toolData.callId,
     status,
     args,
-    data:
-      parsed.data !== undefined
-        ? parsed.data
-        : parsed.isJson
-        ? parsed.raw
-        : toolData.output,
+    data: resolvedData,
     textFallback: parsed.text,
     host:
       registration && registration.pluginId !== "builtin"
@@ -545,12 +552,23 @@ function MessageBubble({
   const serverTimezone = useServerTimezone();
   const user = useCurrentUser();
   const { agents, activeAgent } = useAgent();
+  const speakerId = message.speakerAgentId || agentId;
   const expert = useMemo(
     () =>
-      (agentId && agents.find((item) => item.agent_id === agentId)) ||
+      (speakerId && agents.find((item) => item.agent_id === speakerId)) ||
       activeAgent,
-    [agentId, agents, activeAgent],
+    [speakerId, agents, activeAgent],
   );
+  const isTeamRoom = isTeamAgent(activeAgent);
+  const isTeamHostSpeaker = isTeamHostSpeakerId(
+    isTeamRoom,
+    message.speakerAgentId,
+    activeAgent?.agent_id,
+  );
+  const avatarTooltip = isTeamHostSpeaker
+    ? t("chat.teamHostHover", { name: activeAgent?.name || expert?.name || "" })
+    : expert?.name;
+  const avatarProfileId = isTeamHostSpeaker ? activeAgent?.agent_id : speakerId;
   const userName = accountDisplayName(user);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -647,6 +665,7 @@ function MessageBubble({
           <HitlApprovalCard
             actions={actions}
             status={hitlStatus}
+            resolution={message.hitlData.resolution}
             onDecision={onHitlDecision}
           />
         </div>
@@ -743,6 +762,8 @@ function MessageBubble({
       color={expert.color}
       iconName={expert.icon_name}
       iconUrl={expert.icon_url}
+      tooltip={avatarTooltip}
+      profileAgentId={avatarProfileId}
     />
   ) : null;
 
