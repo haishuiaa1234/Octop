@@ -2,6 +2,13 @@
   "app": {
     "pageTitle": "Octop - 懂你、帮你、陪你成长的智能伙伴"
   },
+  "chatgptLauncher": {
+    "title": "打开 ChatGPT",
+    "help": "请在浏览器提示中允许打开本机 ChatGPT。Octop 无法判断客户端是否已启动；如果取消了提示，可以点击重试。",
+    "setup": "首次使用需要在当前电脑安装 Octop 的 ChatGPT 启动入口；未安装或在手机上使用时，可以打开网页版。",
+    "retry": "再次打开客户端",
+    "web": "打开网页版"
+  },
   "layout": {
     "collapsePanel": "收起面板",
     "expandPanel": "展开面板"

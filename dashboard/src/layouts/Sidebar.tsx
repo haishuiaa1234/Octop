@@ -23,6 +23,7 @@ import {
 import type { MinimalNavPane } from "./layoutModeStorage";
 import MinimalRecordsHost from "./MinimalRecordsHost";
 import SidebarCollapsedIconNav from "./SidebarCollapsedIconNav";
+import { openChatGPT } from "./openChatGPT";
 import SidebarMinimalPaneToggle from "./SidebarMinimalPaneToggle";
 import {
   COLLAPSED_WIDTH,
@@ -32,6 +33,8 @@ import {
   type NavSection,
 } from "./sidebarNav";
 import styles from "./Sidebar.module.less";
+import { useWebsites } from "../pages/Websites/useWebsites";
+import { websiteNavSections } from "../pages/Websites/navigation";
 import { typeSize } from "../utils/mobileTypeScale";
 import { DESKTOP_DRAG_REGION_CLASS } from "../utils/desktopChrome";
 
@@ -189,7 +192,7 @@ function NavItemButton({
             minWidth: 0,
           }}
         >
-          {t(item.labelKey)}
+          {item.label || t(item.labelKey)}
           {item.key === "admin-advanced" && role === "admin" && hasUpdate ? (
             <span className={styles.navUpdateBadge}>
               {t("nav.newVersionBadge", "有新版本")}
@@ -263,13 +266,15 @@ function NavList({
   const user = useCurrentUser();
   const { hasUpdate } = useUpdateStatus();
   const { mobileEnabled } = useServerCapabilities();
-  const navSections = buildNavSections(user, { mobileEnabled }).filter(
-    (section) => {
-      if (sectionFilter === "primary") return !section.groupKey;
-      if (sectionFilter === "grouped") return Boolean(section.groupKey);
-      return true;
-    },
-  );
+  const websites = useWebsites();
+  const navSections = [
+    ...buildNavSections(user, { mobileEnabled }),
+    ...websiteNavSections(websites, role === "admin"),
+  ].filter((section) => {
+    if (sectionFilter === "primary") return !section.groupKey;
+    if (sectionFilter === "grouped") return Boolean(section.groupKey);
+    return true;
+  });
 
   const MOBILE_HIDDEN_KEYS = new Set<string>();
 
@@ -386,7 +391,11 @@ export default function Sidebar({
   const { layoutMode, minimalPane, setMinimalPane } = useLayoutMode();
   const isMinimal = layoutMode === "minimal";
   const onChatPath = isChatPath(location.pathname);
-  const navSections = buildNavSections(user, { mobileEnabled });
+  const websites = useWebsites();
+  const navSections = [
+    ...buildNavSections(user, { mobileEnabled }),
+    ...websiteNavSections(websites, role === "admin"),
+  ];
   const { toggleGroup, isGroupCollapsed } = useNavGroupCollapse(
     navSections,
     selectedKey,
@@ -423,6 +432,11 @@ export default function Sidebar({
   }, [isMinimal, selectMinimalPane]);
 
   const handleNavigate = (path: string) => {
+    if (path === "/open-chatgpt") {
+      openChatGPT(t);
+      if (isMobile) onToggle();
+      return;
+    }
     // When navigating to /chat, preserve the current chatId in the URL so the
     // Chat component is not remounted (key stays the same) and the user stays
     // on their most recent conversation instead of seeing a blank welcome screen.

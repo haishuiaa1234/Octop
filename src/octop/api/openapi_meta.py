@@ -53,6 +53,10 @@ HITL resume still uses `POST /api/agents/{agent_id}/chat/hitl/resume` (SSE).
 
 OPENAPI_TAGS: list[dict[str, str]] = [
     {
+        "name": "websites",
+        "description": "External website entries, administrator configuration and per-user access.",
+    },
+    {
         "name": "setup",
         "description": "First-run wizard: create the admin user and optional LLM provider.",
     },

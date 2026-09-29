@@ -1,0 +1,41 @@
+.viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--fn-bg-primary);
+
+  iframe {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border: 0;
+    background: #fff;
+  }
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--fn-sidebar-border);
+}
+
+.hint {
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--fn-text-secondary);
+}
+
+.center {
+  padding: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.management {
+  max-width: 1200px;
+  margin: 0 auto;
+}

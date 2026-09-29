@@ -30,6 +30,7 @@ from octop.infra.db.repos.usage import UsageRepo
 from octop.infra.db.repos.user_policies import UserPolicyRepo
 from octop.infra.db.repos.users import UserRepo
 from octop.infra.db.repos.voice_providers import VoiceProviderRepo
+from octop.infra.db.repos.websites import WebsiteRepo
 from octop.infra.utils.paths import PathLayout
 
 
@@ -162,6 +163,10 @@ class SharedServices:
     @property
     def settings_repo(self) -> SettingsRepo:
         return self.repos.settings_repo
+
+    @property
+    def website_repo(self) -> WebsiteRepo:
+        return WebsiteRepo(self.db)
 
     @property
     def storage_backend_repo(self) -> BackendRepo:

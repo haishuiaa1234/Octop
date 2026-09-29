@@ -1,0 +1,113 @@
+"""Thin HTTP adapter for the external website catalog."""
+
+import asyncio
+from functools import partial
+
+from fastapi import APIRouter, Depends, Response
+
+from octop.api.deps import current_user, get_server, require_admin
+from octop.infra.server import OctopServer
+from octop.infra.users.identity import User
+from octop.infra.websites.models import WebsiteInput, WebsiteLink, WebsiteRecord, WebsiteUser
+from octop.infra.websites.service import WebsiteService
+
+router = APIRouter()
+
+
+def get_service(server: OctopServer = Depends(get_server)) -> WebsiteService:
+    assert server.services is not None
+    return WebsiteService(server.services)
+
+
+@router.get("/websites", response_model=list[WebsiteLink], summary="List accessible websites")
+async def visible_websites(
+    user: User = Depends(current_user), service: WebsiteService = Depends(get_service)
+) -> list[WebsiteLink]:
+    return await asyncio.get_running_loop().run_in_executor(None, service.list_visible, user)
+
+
+@router.get(
+    "/websites/{website_id}",
+    response_model=WebsiteLink,
+    summary="Open an accessible website",
+    description="Rechecks enablement and audience. Returns 404 for missing, disabled, or unauthorized entries. Does not proxy the target or provide third-party SSO.",
+)
+async def visible_website(
+    website_id: str,
+    user: User = Depends(current_user),
+    service: WebsiteService = Depends(get_service),
+) -> WebsiteLink:
+    return await asyncio.get_running_loop().run_in_executor(
+        None, service.get_visible, user, website_id
+    )
+
+
+@router.get(
+    "/admin/websites",
+    response_model=list[WebsiteRecord],
+    summary="List all website configurations",
+    description="Administrator only; includes disabled entries and access grants.",
+)
+async def managed_websites(
+    user: User = Depends(require_admin()), service: WebsiteService = Depends(get_service)
+) -> list[WebsiteRecord]:
+    return await asyncio.get_running_loop().run_in_executor(None, service.list_managed, user)
+
+
+@router.get(
+    "/admin/websites/users",
+    response_model=list[WebsiteUser],
+    summary="List website audience candidates",
+    description="Administrator only. Includes disabled users to preserve existing grants during edits.",
+)
+async def website_users(
+    user: User = Depends(require_admin()), service: WebsiteService = Depends(get_service)
+) -> list[WebsiteUser]:
+    return await asyncio.get_running_loop().run_in_executor(None, service.users, user)
+
+
+@router.post(
+    "/admin/websites",
+    response_model=WebsiteRecord,
+    status_code=201,
+    summary="Create a website entry",
+    description="Administrator only. Saves a link; does not deploy or fetch the website.",
+)
+async def create_website(
+    body: WebsiteInput,
+    user: User = Depends(require_admin()),
+    service: WebsiteService = Depends(get_service),
+) -> WebsiteRecord:
+    return await asyncio.get_running_loop().run_in_executor(None, partial(service.save, user, body))
+
+
+@router.put(
+    "/admin/websites/{website_id}",
+    response_model=WebsiteRecord,
+    summary="Replace a website configuration",
+    description="Administrator only. Replaces the full configuration, including audience and enabled state.",
+)
+async def update_website(
+    website_id: str,
+    body: WebsiteInput,
+    user: User = Depends(require_admin()),
+    service: WebsiteService = Depends(get_service),
+) -> WebsiteRecord:
+    return await asyncio.get_running_loop().run_in_executor(
+        None, service.save, user, body, website_id
+    )
+
+
+@router.delete(
+    "/admin/websites/{website_id}",
+    status_code=204,
+    summary="Delete a website entry",
+    description="Administrator only. Removes the Octop entry, not the external website.",
+)
+async def delete_website(
+    website_id: str,
+    user: User = Depends(require_admin()),
+    service: WebsiteService = Depends(get_service),
+) -> Response:
+    await asyncio.get_running_loop().run_in_executor(None, service.delete, user, website_id)
+    return Response(status_code=204)

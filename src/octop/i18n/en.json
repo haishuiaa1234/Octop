@@ -1,4 +1,8 @@
 {
+  "websites": {
+    "invalid_url": "Enter an absolute HTTP or HTTPS URL without credentials or whitespace.",
+    "users_required": "Select at least one allowed user."
+  },
   "slash": {
     "error": {
       "unknown_command": "Unknown command: /{name}. Type /help for available commands."

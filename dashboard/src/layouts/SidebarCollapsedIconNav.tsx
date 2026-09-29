@@ -28,7 +28,7 @@ export default function SidebarCollapsedIconNav({
         return (
           <Tooltip
             key={item.key}
-            title={`${t(item.labelKey)}${
+            title={`${item.label || t(item.labelKey)}${
               showUpdateBadge
                 ? ` (${t("nav.newVersionBadge", "有新版本")})`
                 : item.badge

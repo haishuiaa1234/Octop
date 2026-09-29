@@ -33,6 +33,8 @@ export interface NavItem {
   path: string;
   icon: ReactNode;
   labelKey: string;
+  /** Literal label for administrator-configured navigation. */
+  label?: string;
   badge?: string;
 }
 
@@ -89,6 +91,12 @@ export function buildNavSections(
           path: "/experts",
           icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
           labelKey: "nav.experts",
+        },
+        {
+          key: "open-chatgpt",
+          path: "/open-chatgpt",
+          icon: <Monitor size={iconSize} strokeWidth={iconStroke} />,
+          labelKey: "chatgptLauncher.title",
         },
         {
           key: "tasks",

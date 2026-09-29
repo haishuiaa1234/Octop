@@ -2,6 +2,13 @@
   "app": {
     "pageTitle": "Octop - An intelligent partner that understands you, helps you, and grows with you"
   },
+  "chatgptLauncher": {
+    "title": "Open ChatGPT",
+    "help": "Allow your browser to open ChatGPT on this computer. Octop cannot tell whether the app has started; retry if you dismissed the prompt.",
+    "setup": "Install the Octop ChatGPT launcher on this computer before first use. If it is not installed, or you are on a phone, use the web version.",
+    "retry": "Open desktop app again",
+    "web": "Open web version"
+  },
   "layout": {
     "collapsePanel": "Collapse panel",
     "expandPanel": "Expand panel"

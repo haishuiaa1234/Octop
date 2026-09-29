@@ -1,4 +1,8 @@
 {
+  "websites": {
+    "invalid_url": "请输入不含账号密码的完整 HTTP 或 HTTPS 网址。",
+    "users_required": "请至少选择一位可访问用户。"
+  },
   "slash": {
     "error": {
       "unknown_command": "未知指令：/{name}。输入 /help 查看可用指令。"

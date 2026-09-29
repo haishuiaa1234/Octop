@@ -1,4 +1,5 @@
 import i18n from "i18next";
+import { websiteLocales } from "./pages/Websites/locales";
 import { initReactI18next } from "react-i18next";
 import { getApiUrl } from "./api/config";
 import { i18nApi } from "./api/modules/i18n";
@@ -12,9 +13,15 @@ export type { UiLocale } from "./utils/localePrefs";
 
 async function loadLocaleBundle(locale: UiLocale) {
   if (locale === "zh") {
-    return (await import("./locales/zh.json")).default;
+    return {
+      ...(await import("./locales/zh.json")).default,
+      websites: websiteLocales.zh,
+    };
   }
-  return (await import("./locales/en.json")).default;
+  return {
+    ...(await import("./locales/en.json")).default,
+    websites: websiteLocales.en,
+  };
 }
 
 export async function ensureLocaleBundle(locale: UiLocale): Promise<void> {

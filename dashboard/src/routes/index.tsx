@@ -29,6 +29,11 @@ const AdminStoragePage = lazy(() => import("../pages/Admin/Storage"));
 const AdminPluginsPage = lazy(() => import("../pages/Admin/Plugins"));
 const AgentConfigPage = lazy(() => import("../pages/Agent/Config"));
 
+const WebsiteView = lazy(() => import("../pages/Websites/WebsiteView"));
+const WebsiteManagement = lazy(
+  () => import("../pages/Websites/WebsiteManagement"),
+);
+
 // Misc
 const PwaDebugPage = lazy(() => import("../pages/PwaDebug"));
 const NotFoundPage = lazy(() => import("../components/NotFoundPage"));
@@ -86,6 +91,7 @@ export const pathToKey: Record<string, string> = {
   "/admin/models": "models",
   // Admin
   "/admin/users": "admin-users",
+  "/admin/websites": "admin-websites",
   "/admin/backend": "admin-storage",
   "/admin/plugins": "admin-plugins",
   "/admin/advanced": "admin-advanced",
@@ -96,6 +102,7 @@ export const pathToKey: Record<string, string> = {
  * Pages that should fill the entire content area without padding/scroll wrapper.
  */
 export const FULLSCREEN_PATHS = new Set([
+  "/websites",
   "/workbench",
   "/workbench/terminal",
   "/workbench/browser",
@@ -134,6 +141,8 @@ export function isPersonalizationPath(pathname: string): boolean {
 
 export function resolveSelectedKey(pathname: string): string {
   if (pathToKey[pathname]) return pathToKey[pathname];
+  if (pathname.startsWith("/websites/"))
+    return `website-${pathname.split("/")[2]}`;
   if (pathname.startsWith("/chat/")) return "chat";
   if (pathname.startsWith("/workbench/")) return "workbench";
   if (pathname.startsWith("/remote-desktop/")) return "remote-desktop";
@@ -142,6 +151,8 @@ export function resolveSelectedKey(pathname: string): string {
 }
 
 export const routeConfigs: RouteConfig[] = [
+  { path: "/websites/:websiteId", element: <WebsiteView /> },
+  { path: "/admin/websites", element: <WebsiteManagement /> },
   // Chat (handled via ChatWithKey wrapper in MainLayout)
   { path: "/chat", element: null, useWrapper: true },
   { path: "/chat/:agentId", element: null, useWrapper: true },
