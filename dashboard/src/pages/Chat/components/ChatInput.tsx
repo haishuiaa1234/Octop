@@ -769,6 +769,13 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onReclaim={handleReclaimQueued}
           />
         )}
+        <ChatInputComposerActions
+          actions={composerActions}
+          label={t("experts.composerActionsTitle")}
+          disabled={disabled}
+          onPrefill={prefillComposerAction}
+          onSend={(prompt) => submitMessage(prompt)}
+        />
         <div className={styles.inputWrapper}>
           <ChatInputPreviewBar
             attachments={attachments}
@@ -782,14 +789,6 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             selectedKnowledgeBaseIds={selectedKnowledgeBaseIds}
             onKnowledgeBaseIdsChange={onKnowledgeBaseIdsChange}
             onModelChange={onModelChange}
-          />
-
-          <ChatInputComposerActions
-            actions={composerActions}
-            label={t("experts.composerActionsTitle")}
-            disabled={disabled}
-            onPrefill={prefillComposerAction}
-            onSend={(prompt) => submitMessage(prompt)}
           />
 
           <div className={styles.inputRow} style={{ position: "relative" }}>

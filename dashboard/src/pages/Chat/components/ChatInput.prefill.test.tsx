@@ -201,6 +201,30 @@ describe("ChatInput prefill clear-on-send", () => {
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 
+  it("renders configured actions above the bordered input wrapper", () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        onCancel={vi.fn()}
+        onNewChat={vi.fn()}
+        isStreaming={false}
+        agentId="agent-1"
+        composerActions={[
+          { title: "Review", prompt: "Review this", behavior: "prefill" },
+          { title: "Summarize", prompt: "Summarize this", behavior: "prefill" },
+        ]}
+      />,
+    );
+
+    const actionGroup = screen.getByRole("group");
+    const textarea = screen.getByRole("textbox");
+    const inputWrapper = textarea.parentElement?.parentElement;
+
+    expect(actionGroup.parentElement).toBe(inputWrapper?.parentElement);
+    expect(actionGroup.nextElementSibling).toBe(inputWrapper);
+    expect(actionGroup.querySelectorAll("button")).toHaveLength(2);
+  });
+
   it("queues an immediate action during streaming without replacing the draft", () => {
     const onSend = vi.fn();
     const onQueue = vi.fn(() => "ok" as const);
