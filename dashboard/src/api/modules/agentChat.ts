@@ -1,6 +1,20 @@
 import { request } from "../request";
 import type { LocalizedText } from "../../utils/localizedText";
 
+export interface ChatComposerAction {
+  title: string;
+  prompt: string;
+  icon_name: string | null;
+  behavior: "prefill" | "send";
+}
+
+export interface ChatComposerActionDto {
+  title: LocalizedText;
+  prompt: LocalizedText;
+  icon_name?: string | null;
+  behavior?: "prefill" | "send";
+}
+
 export interface ChatWelcomeResponse {
   welcome_message?: LocalizedText;
   quick_prompts?: Array<{
@@ -12,6 +26,7 @@ export interface ChatWelcomeResponse {
     expert?: string;
     agent_id?: string;
   }>;
+  composer_actions?: ChatComposerActionDto[];
   task_examples?: { zh?: string[]; en?: string[] } | null;
 }
 

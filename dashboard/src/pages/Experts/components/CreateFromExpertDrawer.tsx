@@ -69,9 +69,13 @@ import ExpertAvatarPicker from "./ExpertAvatarPicker";
 import ExpertComposerDefaultsFields from "./ExpertComposerDefaultsFields";
 import WelcomeConfig, { type WelcomeConfigRef } from "./WelcomeConfig";
 import {
+  normalizeComposerActions,
   normalizeQuickPrompts,
+  serializeComposerActions,
   serializeQuickPrompts,
   shouldWriteWelcomeManifest,
+  validateComposerActions,
+  type ComposerAction,
   type QuickPrompt,
 } from "./welcomeManifest";
 import FileEditModal from "./FileEditModal";
@@ -97,6 +101,7 @@ interface ExpertDetail {
   file_contents?: FileContent[];
   welcome_message?: { zh?: string; en?: string };
   quick_prompts?: QuickPrompt[];
+  composer_actions?: ComposerAction[];
 }
 
 export type CreateFromTemplateSource =
@@ -258,6 +263,9 @@ export default function CreateFromExpertDrawer({
   const [detailPrompts, setDetailPrompts] = useState<QuickPrompt[] | null>(
     null,
   );
+  const [detailActions, setDetailActions] = useState<ComposerAction[] | null>(
+    null,
+  );
   const [promptsSourceKey, setPromptsSourceKey] = useState("");
   const welcomeConfigRef = useRef<WelcomeConfigRef>(null);
 
@@ -289,6 +297,7 @@ export default function CreateFromExpertDrawer({
     setDetailPrompts(null);
   }
   const templatePrompts = detailPrompts ?? listPrompts;
+  const templateActions = detailActions ?? [];
 
   useEffect(() => {
     if (!open || !source) return;
@@ -321,6 +330,7 @@ export default function CreateFromExpertDrawer({
     setLocalEditPath(null);
     setSubagentPickerOpen(false);
     setDetailPrompts(null);
+    setDetailActions(null);
     if (source.kind === "market") {
       setFileContents(ensurePromptFiles([]));
       setOriginalFileContents([]);
@@ -340,6 +350,7 @@ export default function CreateFromExpertDrawer({
         setFileContents(ensurePromptFiles(files));
         setOriginalFileContents(files);
         setDetailPrompts(normalizeQuickPrompts(data.quick_prompts));
+        setDetailActions(normalizeComposerActions(data.composer_actions));
         const welcome = data.welcome_message;
         const welcomeText = pickLocale(welcome, lang);
         if (welcomeText) {
@@ -352,6 +363,7 @@ export default function CreateFromExpertDrawer({
         if (!cancelled) {
           setFileContents([]);
           setOriginalFileContents([]);
+          setDetailActions([]);
         }
       })
       .finally(() => {
@@ -386,6 +398,23 @@ export default function CreateFromExpertDrawer({
   const handleCreate = async () => {
     if (!source) return;
     const values = await form.validateFields();
+    const welcomeSnap = welcomeConfigRef.current?.getSnapshot();
+    if (
+      welcomeSnap &&
+      shouldWriteWelcomeManifest(welcomeSnap.status, welcomeSnap.dirty)
+    ) {
+      const validation = validateComposerActions(
+        welcomeSnap.data.composer_actions ?? [],
+      );
+      if (!validation.valid) {
+        message.error(
+          t("experts.composerActionIncomplete", {
+            number: validation.index + 1,
+          }),
+        );
+        return;
+      }
+    }
     const stored = form.getFieldsValue(true) as {
       welcome_message?: string;
     };
@@ -430,11 +459,15 @@ export default function CreateFromExpertDrawer({
         originalFileContents,
         fileContents,
       );
-      const welcomeSnap = welcomeConfigRef.current?.getSnapshot();
       const pageConfigPrompts =
         welcomeSnap &&
         shouldWriteWelcomeManifest(welcomeSnap.status, welcomeSnap.dirty)
           ? serializeQuickPrompts(welcomeSnap.data.quick_prompts)
+          : undefined;
+      const pageConfigActions =
+        welcomeSnap &&
+        shouldWriteWelcomeManifest(welcomeSnap.status, welcomeSnap.dirty)
+          ? serializeComposerActions(welcomeSnap.data.composer_actions ?? [])
           : undefined;
       const payload = {
         name: values.name,
@@ -463,6 +496,9 @@ export default function CreateFromExpertDrawer({
         ...(pendingCopySkills.length ? { copy_skills: pendingCopySkills } : {}),
         ...(pageConfigPrompts !== undefined
           ? { quick_prompts: pageConfigPrompts }
+          : {}),
+        ...(pageConfigActions !== undefined
+          ? { composer_actions: pageConfigActions }
           : {}),
       };
 
@@ -714,6 +750,7 @@ export default function CreateFromExpertDrawer({
                     key={sourceKey}
                     ref={welcomeConfigRef}
                     initialPrompts={templatePrompts}
+                    initialActions={templateActions}
                     disabled={detailLoading || submitting}
                   />
                 ),

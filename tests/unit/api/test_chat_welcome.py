@@ -12,14 +12,17 @@ from octop_harness.backends.workspace import BackendWorkspace
 
 from octop.infra.agents.experts.catalog import (
     ExpertCatalog,
+    apply_workspace_composer_actions,
     default_task_examples,
     default_welcome_payload,
     normalize_task_examples_for_display,
+    parse_composer_actions,
     parse_task_examples,
     read_workspace_manifest_task_examples,
     read_workspace_manifest_welcome,
     seed_expert_directory,
     snap_task_examples,
+    welcome_payload_from_manifest_data,
     welcome_payload_has_content,
 )
 
@@ -57,6 +60,32 @@ async def test_read_workspace_manifest_welcome() -> None:
         assert payload["welcome_message"]["zh"] == "你好"
         assert len(payload["quick_prompts"]) == 1
         assert payload["quick_prompts"][0]["title"]["en"] == "Title"
+
+
+@pytest.mark.asyncio
+async def test_apply_workspace_composer_actions_preserves_manifest_fields() -> None:
+    with tempfile.TemporaryDirectory() as ws_dir:
+        workspace = _workspace(ws_dir)
+        await workspace.awrite_text(
+            ".octop/manifest.json",
+            json.dumps({"id": "expert", "quick_prompts": [{"title": "Keep"}]}),
+            force=True,
+        )
+        await apply_workspace_composer_actions(
+            workspace,
+            [
+                {
+                    "title": {"zh": "总结", "en": "Summarize"},
+                    "prompt": {"zh": "总结", "en": "Summarize"},
+                    "behavior": "send",
+                }
+            ],
+        )
+
+        manifest = json.loads(await workspace.aread_text(".octop/manifest.json"))
+        assert manifest["id"] == "expert"
+        assert manifest["quick_prompts"] == [{"title": "Keep"}]
+        assert manifest["composer_actions"][0]["behavior"] == "send"
 
 
 @pytest.mark.asyncio
@@ -128,6 +157,49 @@ def test_default_welcome_builtin_without_catalog() -> None:
     payload = default_welcome_payload(None)
     assert welcome_payload_has_content(payload)
     assert len(payload["quick_prompts"]) >= 1
+
+
+def test_parse_composer_actions_keeps_supported_actions_and_defaults() -> None:
+    actions = parse_composer_actions(
+        {
+            "composer_actions": [
+                {
+                    "title": {"zh": "Summary", "en": "Summary"},
+                    "prompt": {"zh": "Summarize", "en": "Summarize"},
+                    "icon_name": "file-text",
+                    "behavior": "send",
+                },
+                {
+                    "title": {"zh": "Draft", "en": "Draft"},
+                    "prompt": {"zh": "Draft", "en": "Draft"},
+                    "behavior": "unknown",
+                },
+            ]
+        }
+    )
+
+    assert actions[0]["behavior"] == "send"
+    assert actions[0]["icon_name"] == "file-text"
+    assert actions[1]["behavior"] == "prefill"
+    assert actions[1]["icon_name"] is None
+    assert parse_composer_actions({}) == []
+
+
+def test_welcome_payload_includes_composer_actions() -> None:
+    payload = welcome_payload_from_manifest_data(
+        {
+            "composer_actions": [
+                {
+                    "title": {"zh": "Start", "en": "Start"},
+                    "prompt": {"zh": "Analyze", "en": "Analyze"},
+                    "behavior": "prefill",
+                }
+            ]
+        }
+    )
+
+    assert payload["composer_actions"][0]["title"]["en"] == "Start"
+    assert payload["composer_actions"][0]["behavior"] == "prefill"
 
 
 def test_parse_task_examples_missing_field_is_none() -> None:

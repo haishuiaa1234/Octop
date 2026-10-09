@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
@@ -29,6 +29,7 @@ from octop.infra.agents.experts.avatar import (
 )
 from octop.infra.agents.experts.catalog import (
     MANIFEST_FILENAME,
+    apply_workspace_composer_actions,
     apply_workspace_quick_prompts,
     build_create_spec_from_expert,
     discover_seed_paths,
@@ -149,6 +150,7 @@ class FromExpertBody(AgentRuntimeFields):
     hub_skills: list[ComposerHubSkillBody] | None = None
     copy_skills: list[ComposerCopySkillBody] | None = None
     quick_prompts: list[QuickPromptResponse] | None = None
+    composer_actions: list[ComposerActionResponse] | None = None
 
 
 class PublishExpertBody(BaseModel):
@@ -190,6 +192,7 @@ class InstallPublishedExpertBody(AgentRuntimeFields):
     hub_skills: list[ComposerHubSkillBody] | None = None
     copy_skills: list[ComposerCopySkillBody] | None = None
     quick_prompts: list[QuickPromptResponse] | None = None
+    composer_actions: list[ComposerActionResponse] | None = None
 
 
 def _composer_plan_from_body(
@@ -249,13 +252,30 @@ def _quick_prompts_from_body(
     return [_quick_prompt_body_dict(item) for item in body.quick_prompts]
 
 
+def _composer_actions_from_body(
+    body: FromExpertBody | InstallPublishedExpertBody,
+) -> list[dict[str, Any]] | None:
+    if body.composer_actions is None:
+        return None
+    return [
+        {
+            "title": {"zh": item.title.zh, "en": item.title.en},
+            "prompt": {"zh": item.prompt.zh, "en": item.prompt.en},
+            "icon_name": item.icon_name,
+            "behavior": item.behavior,
+        }
+        for item in body.composer_actions
+    ]
+
+
 def _composer_initializer(
     patch: ComposerWorkspacePatch,
     copies: tuple[tuple[str, Any], ...] = (),
     report: ComposerApplyReport | None = None,
     quick_prompts: list[dict[str, Any]] | None = None,
+    composer_actions: list[dict[str, Any]] | None = None,
 ) -> Any:
-    if patch.is_empty() and not copies and quick_prompts is None:
+    if patch.is_empty() and not copies and quick_prompts is None and composer_actions is None:
         return None
 
     async def _apply(_row: Any, workspace: Any) -> None:
@@ -263,6 +283,8 @@ def _composer_initializer(
             await apply_composer_workspace_patch(workspace, patch, copies=copies, report=report)
         if quick_prompts is not None:
             await apply_workspace_quick_prompts(workspace, quick_prompts)
+        if composer_actions is not None:
+            await apply_workspace_composer_actions(workspace, composer_actions)
 
     return _apply
 
@@ -278,6 +300,13 @@ class QuickPromptResponse(BaseModel):
     prompt: LocalizedTextResponse
     color: str = "#e8f4ff"
     icon_name: str | None = None
+
+
+class ComposerActionResponse(BaseModel):
+    title: LocalizedTextResponse
+    prompt: LocalizedTextResponse
+    icon_name: str | None = None
+    behavior: Literal["prefill", "send"] = "prefill"
 
 
 class ExpertHubItemResponse(BaseModel):
@@ -384,6 +413,7 @@ def _expert_dict(
         "files": list(e.files),
         "prompt_files": list(e.prompt_files),
         "quick_prompts": [_quick_prompt_dict(p) for p in getattr(e, "quick_prompts", ())],
+        "composer_actions": list(getattr(e, "composer_actions", ())),
     }
     if include_file_contents:
         result["file_contents"] = catalog.read_file_contents(
@@ -520,6 +550,7 @@ async def get_published_expert(
         **_published_summary_dict(row, server),
         "welcome_message": welcome_payload["welcome_message"],
         "quick_prompts": welcome_payload["quick_prompts"],
+        "composer_actions": welcome_payload["composer_actions"],
         "files": files,
         "file_contents": await asyncio.to_thread(
             read_text_file_contents,
@@ -675,6 +706,7 @@ async def install_published_expert(
             composer_copies=copies,
             composer_report=report,
             quick_prompts=_quick_prompts_from_body(body),
+            composer_actions=_composer_actions_from_body(body),
         ),
     )
     result.update(report.as_api_fields())
@@ -785,6 +817,7 @@ async def install_expert_hub_item(
                 composer_copies=copies,
                 composer_report=report,
                 quick_prompts=_quick_prompts_from_body(body),
+                composer_actions=_composer_actions_from_body(body),
                 **runtime_field_updates(body, exclude_unset=False),
             ),
         )
@@ -897,6 +930,7 @@ async def create_agent_from_expert(
             copies,
             report,
             quick_prompts=_quick_prompts_from_body(body),
+            composer_actions=_composer_actions_from_body(body),
         ),
     )
     return {

@@ -87,6 +87,67 @@
   }
 }
 
+.composerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 0 7px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.composerActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 30px;
+  max-width: 220px;
+  padding: 5px 10px;
+  border: 1px solid var(--fn-border-secondary);
+  border-radius: 6px;
+  background: var(--fn-bg-elevated, #fff);
+  color: var(--fn-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--fn-transition-fast),
+    border-color var(--fn-transition-fast),
+    background-color var(--fn-transition-fast);
+
+  &:hover:not(:disabled) {
+    border-color: var(--fn-color-brand);
+    color: var(--fn-color-brand);
+    background: var(--fn-color-brand-bg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--fn-color-brand);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.composerActionIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
 .inputRow {
   display: flex;
   align-items: flex-end;

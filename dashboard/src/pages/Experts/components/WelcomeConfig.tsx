@@ -7,19 +7,23 @@ import {
   useMemo,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input } from "antd";
+import { Button, Input, Segmented } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { agentChatApi } from "@/api/modules/agentChat";
 import { iconForName } from "./iconForName";
 import { pastelIconBackground } from "@/utils/pastelIconBackground";
 import styles from "../index.module.less";
 import type {
+  ComposerAction,
   QuickPrompt,
   WelcomeConfigData,
   WelcomeManifestSnapshot,
   WelcomeManifestStatus,
 } from "./welcomeManifest";
-import { normalizeQuickPrompts } from "./welcomeManifest";
+import {
+  normalizeComposerActions,
+  normalizeQuickPrompts,
+} from "./welcomeManifest";
 
 export type { QuickPrompt, WelcomeConfigData };
 
@@ -28,6 +32,7 @@ interface WelcomeConfigProps {
   agentId?: string;
   /** Create-drawer seed; ignored when agentId is set. */
   initialPrompts?: QuickPrompt[];
+  initialActions?: ComposerAction[];
   disabled?: boolean;
 }
 
@@ -37,6 +42,13 @@ const defaultQuickPrompt: QuickPrompt = {
   prompt: { zh: "", en: "" },
   color: "#e8f4ff",
   icon_name: null,
+};
+
+const defaultComposerAction: ComposerAction = {
+  title: { zh: "", en: "" },
+  prompt: { zh: "", en: "" },
+  icon_name: null,
+  behavior: "prefill",
 };
 
 const presetColors = [
@@ -75,7 +87,7 @@ export interface WelcomeConfigRef {
 }
 
 const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
-  ({ agentId, initialPrompts, disabled = false }, ref) => {
+  ({ agentId, initialPrompts, initialActions, disabled = false }, ref) => {
     const { t, i18n } = useTranslation();
     const [status, setStatus] = useState<WelcomeManifestStatus>(() =>
       agentId ? "loading" : "ready",
@@ -83,6 +95,9 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
     const [dirty, setDirty] = useState(false);
     const [quickPrompts, setQuickPrompts] = useState<QuickPrompt[]>(() =>
       agentId ? [] : normalizeQuickPrompts(initialPrompts),
+    );
+    const [composerActions, setComposerActions] = useState<ComposerAction[]>(
+      () => (agentId ? [] : normalizeComposerActions(initialActions)),
     );
     const currentLang = i18n.language.startsWith("zh") ? "zh" : "en";
     const markDirty = () => {
@@ -92,8 +107,9 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
     const snapshotData = useMemo(
       (): WelcomeConfigData => ({
         quick_prompts: quickPrompts,
+        composer_actions: composerActions,
       }),
-      [quickPrompts],
+      [quickPrompts, composerActions],
     );
 
     useImperativeHandle(
@@ -118,9 +134,11 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
       try {
         const data = await agentChatApi.welcome(agentId);
         setQuickPrompts(normalizeQuickPrompts(data.quick_prompts));
+        setComposerActions(normalizeComposerActions(data.composer_actions));
         setStatus("ready");
       } catch {
         setQuickPrompts([]);
+        setComposerActions([]);
         setStatus("error");
       }
     }, [agentId]);
@@ -133,6 +151,11 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
       if (agentId || dirty) return;
       setQuickPrompts(normalizeQuickPrompts(initialPrompts));
     }, [agentId, dirty, initialPrompts]);
+
+    useEffect(() => {
+      if (agentId || dirty) return;
+      setComposerActions(normalizeComposerActions(initialActions));
+    }, [agentId, dirty, initialActions]);
 
     const addQuickPrompt = () => {
       if (disabled) return;
@@ -177,6 +200,55 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
         },
       };
       setQuickPrompts(newPrompts);
+    };
+
+    const addComposerAction = () => {
+      if (disabled) return;
+      markDirty();
+      setComposerActions([...composerActions, { ...defaultComposerAction }]);
+    };
+
+    const removeComposerAction = (index: number) => {
+      if (disabled) return;
+      markDirty();
+      setComposerActions((current) => current.filter((_, i) => i !== index));
+    };
+
+    const updateComposerAction = (
+      index: number,
+      field: "icon_name" | "behavior",
+      value: string | null,
+    ) => {
+      if (disabled) return;
+      markDirty();
+      setComposerActions((current) =>
+        current.map((action, i) =>
+          i === index ? { ...action, [field]: value } : action,
+        ),
+      );
+    };
+
+    const updateComposerActionText = (
+      index: number,
+      field: "title" | "prompt",
+      value: string,
+    ) => {
+      if (disabled) return;
+      markDirty();
+      setComposerActions((current) =>
+        current.map((action, i) =>
+          i === index
+            ? {
+                ...action,
+                [field]: {
+                  zh: action[field]?.zh ?? "",
+                  en: action[field]?.en ?? "",
+                  [currentLang]: value,
+                },
+              }
+            : action,
+        ),
+      );
     };
 
     return (
@@ -383,6 +455,153 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
                 {quickPrompts.length === 0 && (
                   <div className={styles.quickPromptsEmpty}>
                     {t("experts.noQuickPrompts")}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.welcomeConfigSection}>
+              <div className={styles.quickPromptsHeader}>
+                <h4>{t("experts.composerActionsTitle")}</h4>
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  disabled={disabled}
+                  onClick={addComposerAction}
+                >
+                  {t("experts.addComposerAction")}
+                </Button>
+              </div>
+              <div className={styles.quickPromptsList}>
+                {composerActions.map((action, index) => (
+                  <div
+                    key={index}
+                    className={styles.quickPromptItem}
+                    data-composer-action-index={index}
+                  >
+                    <div className={styles.quickPromptHeader}>
+                      <span className={styles.quickPromptIndex}>
+                        {index + 1}
+                      </span>
+                      <Button
+                        type="text"
+                        danger
+                        aria-label={t("experts.removeComposerAction", {
+                          number: index + 1,
+                        })}
+                        icon={<DeleteOutlined />}
+                        disabled={disabled}
+                        onClick={() => removeComposerAction(index)}
+                      />
+                    </div>
+                    <div className={styles.quickPromptFields}>
+                      <div className={styles.quickPromptFieldFull}>
+                        <label>{t("experts.composerActionTitle")}</label>
+                        <Input
+                          value={action.title[currentLang]}
+                          disabled={disabled}
+                          onChange={(event) =>
+                            updateComposerActionText(
+                              index,
+                              "title",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t(
+                            "experts.composerActionTitlePlaceholder",
+                          )}
+                        />
+                      </div>
+                      <div className={styles.quickPromptFieldFull}>
+                        <label>{t("experts.composerActionPrompt")}</label>
+                        <Input.TextArea
+                          value={action.prompt[currentLang]}
+                          disabled={disabled}
+                          onChange={(event) =>
+                            updateComposerActionText(
+                              index,
+                              "prompt",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t(
+                            "experts.composerActionPromptPlaceholder",
+                          )}
+                          rows={2}
+                        />
+                      </div>
+                      <div className={styles.quickPromptFieldFull}>
+                        <label>{t("experts.composerActionBehavior")}</label>
+                        <Segmented
+                          disabled={disabled}
+                          value={action.behavior}
+                          options={[
+                            {
+                              label: t("experts.composerActionPrefill"),
+                              value: "prefill",
+                            },
+                            {
+                              label: t("experts.composerActionSend"),
+                              value: "send",
+                            },
+                          ]}
+                          onChange={(value) =>
+                            updateComposerAction(
+                              index,
+                              "behavior",
+                              value as "prefill" | "send",
+                            )
+                          }
+                        />
+                      </div>
+                      <div className={styles.quickPromptFieldFull}>
+                        <label>{t("experts.quickPromptIcon")}</label>
+                        <div className={styles.iconPicker}>
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            aria-label={t("experts.noIcon")}
+                            aria-pressed={!action.icon_name}
+                            className={`${styles.iconOption} ${
+                              styles.iconOptionNoIcon
+                            }${
+                              !action.icon_name
+                                ? ` ${styles.iconOptionActive}`
+                                : ""
+                            }`}
+                            onClick={() =>
+                              updateComposerAction(index, "icon_name", null)
+                            }
+                          >
+                            {t("experts.noIcon")}
+                          </button>
+                          {presetIcons.map((icon) => (
+                            <button
+                              key={icon}
+                              type="button"
+                              disabled={disabled}
+                              aria-label={icon}
+                              aria-pressed={action.icon_name === icon}
+                              className={`${styles.iconOption}${
+                                action.icon_name === icon
+                                  ? ` ${styles.iconOptionActive}`
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                updateComposerAction(index, "icon_name", icon)
+                              }
+                            >
+                              {iconForName(icon, 16)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {composerActions.length === 0 && (
+                  <div className={styles.quickPromptsEmpty}>
+                    {t("experts.noComposerActions")}
                   </div>
                 )}
               </div>

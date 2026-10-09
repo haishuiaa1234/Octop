@@ -19,6 +19,7 @@ import { useKeepInVisualViewport } from "../../../hooks/useKeepInVisualViewport"
 import { useSlashCommands } from "../../../hooks/useSlashCommands";
 import SlashCommandMenu from "./SlashCommandMenu";
 import { agentChatApi } from "../../../api/modules/agentChat";
+import type { ChatComposerAction } from "../../../api/modules/agentChat";
 import type { ChatAttachment } from "../hooks/useChat";
 import type { ResolvedModel } from "../../../api/types";
 import type { KnowledgeBase } from "../../../api/modules/knowledgeBases";
@@ -27,6 +28,7 @@ import type { ChatAgentOption } from "./ExpertAgentAvatar";
 import type { AgentSubagentSummary } from "../../../api/modules/subagents";
 import MentionPickerMenu from "./MentionPickerMenu";
 import ChatInputPreviewBar from "./ChatInputPreviewBar";
+import ChatInputComposerActions from "./ChatInputComposerActions";
 import ChatInputActionsRow from "./ChatInputActionsRow";
 import ChatQueuedMessages from "./ChatQueuedMessages";
 import { useVoiceInput } from "../../../hooks/useVoiceInput";
@@ -92,6 +94,7 @@ interface ChatInputProps {
   initialText?: string;
   /** Called when the composer is cleared after a successful send/queue. */
   onComposerCleared?: () => void;
+  composerActions?: ChatComposerAction[];
   availableModels?: ResolvedModel[];
   selectedModel?: string | null;
   onModelChange?: (model: string | null) => void;
@@ -154,6 +157,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       disabled,
       initialText = "",
       onComposerCleared,
+      composerActions = [],
       availableModels,
       selectedModel,
       onModelChange,
@@ -504,67 +508,94 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       ],
     );
 
-    const submitMessage = useCallback(() => {
-      const trimmed = text.trim();
-      if ((!trimmed && attachments.length === 0) || disabled) return;
-      const wireText = materializeSkillSlashes(trimmed, skillTokenRefs).trim();
-      const slashItem = matchSlashCommand(wireText);
-      if (slashItem && slashItem.spec.client_action !== "none") {
-        // Slash actions are never queued — run immediately or leave input alone.
-        if (isStreaming) return;
-        runSlashCommand(slashItem);
-        return;
-      }
-      const ta = textareaRef.current;
-      const prevHeight = ta ? ta.getBoundingClientRect().height : 0;
-
-      if (isStreaming && !isTeam) {
-        if (!onQueue) return;
-        const result = onQueue({
-          text: wireText,
-          attachments: attachments.length > 0 ? attachments : undefined,
-          composerContext: buildComposerContext({
-            skills: selectedSkillSlugs,
-            connectors: selectedConnectors,
-            knowledgeBaseIds: selectedKnowledgeBaseIds,
-            selectedModel,
-            reasoningMode,
-            reasoningEffort,
-          }),
-          modelRef: resolveTurnModelRef(selectedModel, defaultModel),
-        });
-        if (result === "full") {
-          antMessage.warning(t("chat.queue.full"));
+    const submitMessage = useCallback(
+      (messageOverride?: string) => {
+        const actionSend = messageOverride !== undefined;
+        const trimmed = (messageOverride ?? text).trim();
+        const submittedAttachments = actionSend ? [] : attachments;
+        if ((!trimmed && submittedAttachments.length === 0) || disabled) return;
+        const wireText = materializeSkillSlashes(
+          trimmed,
+          skillTokenRefs,
+        ).trim();
+        const slashItem = matchSlashCommand(wireText);
+        if (slashItem && slashItem.spec.client_action !== "none") {
+          // Slash actions are never queued — run immediately or leave input alone.
+          if (isStreaming) return;
+          runSlashCommand(slashItem);
           return;
         }
-        if (result === "empty") return;
-        resetComposerAfterSubmit(prevHeight, trimmed);
-        return;
-      }
+        const ta = textareaRef.current;
+        const prevHeight = ta ? ta.getBoundingClientRect().height : 0;
 
-      onSend(wireText, attachments.length > 0 ? attachments : undefined);
-      resetComposerAfterSubmit(prevHeight, trimmed);
-    }, [
-      text,
-      attachments,
-      onSend,
-      onQueue,
-      disabled,
-      isStreaming,
-      isTeam,
-      matchSlashCommand,
-      runSlashCommand,
-      resetComposerAfterSubmit,
-      selectedConnectors,
-      selectedKnowledgeBaseIds,
-      selectedSkillSlugs,
-      skillTokenRefs,
-      selectedModel,
-      reasoningMode,
-      reasoningEffort,
-      defaultModel,
-      t,
-    ]);
+        if (isStreaming && !isTeam) {
+          if (!onQueue) return;
+          const result = onQueue({
+            text: wireText,
+            attachments:
+              submittedAttachments.length > 0
+                ? submittedAttachments
+                : undefined,
+            composerContext: buildComposerContext({
+              skills: selectedSkillSlugs,
+              connectors: selectedConnectors,
+              knowledgeBaseIds: selectedKnowledgeBaseIds,
+              selectedModel,
+              reasoningMode,
+              reasoningEffort,
+            }),
+            modelRef: resolveTurnModelRef(selectedModel, defaultModel),
+          });
+          if (result === "full") {
+            antMessage.warning(t("chat.queue.full"));
+            return;
+          }
+          if (result === "empty") return;
+          if (!actionSend) resetComposerAfterSubmit(prevHeight, trimmed);
+          return;
+        }
+
+        onSend(
+          wireText,
+          submittedAttachments.length > 0 ? submittedAttachments : undefined,
+        );
+        if (!actionSend) resetComposerAfterSubmit(prevHeight, trimmed);
+      },
+      [
+        text,
+        attachments,
+        onSend,
+        onQueue,
+        disabled,
+        isStreaming,
+        isTeam,
+        matchSlashCommand,
+        runSlashCommand,
+        resetComposerAfterSubmit,
+        selectedConnectors,
+        selectedKnowledgeBaseIds,
+        selectedSkillSlugs,
+        skillTokenRefs,
+        selectedModel,
+        reasoningMode,
+        reasoningEffort,
+        defaultModel,
+        t,
+      ],
+    );
+
+    const prefillComposerAction = useCallback(
+      (prompt: string) => {
+        setComposerText(prompt);
+        requestAnimationFrame(() => {
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        });
+      },
+      [setComposerText],
+    );
 
     submitRef.current = submitMessage;
 
@@ -753,6 +784,14 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onModelChange={onModelChange}
           />
 
+          <ChatInputComposerActions
+            actions={composerActions}
+            label={t("experts.composerActionsTitle")}
+            disabled={disabled}
+            onPrefill={prefillComposerAction}
+            onSend={(prompt) => submitMessage(prompt)}
+          />
+
           <div className={styles.inputRow} style={{ position: "relative" }}>
             <textarea
               ref={textareaRef}
@@ -903,7 +942,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onPolish={() => void handlePolish()}
             onToggleVoice={() => toggleVoice()}
             onCancel={onCancel}
-            onSubmit={submitMessage}
+            onSubmit={() => submitMessage()}
           />
 
           <input

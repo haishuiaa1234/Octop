@@ -1,14 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   filterQuickPrompts,
+  filterComposerActions,
   mergeWelcomeIntoManifest,
   normalizeQuickPrompts,
+  normalizeComposerActions,
   parseManifestObject,
   serializeQuickPrompts,
+  serializeComposerActions,
+  saveManifestBeforeAgentUpdate,
   shouldWriteWelcomeManifest,
+  validateComposerActions,
 } from "./welcomeManifest";
 import type { QuickPrompt } from "./welcomeManifest";
+import type { ComposerAction } from "./welcomeManifest";
 
 const prompt = (over: Partial<QuickPrompt> = {}): QuickPrompt => ({
   title: { zh: "标题", en: "Title" },
@@ -19,12 +25,59 @@ const prompt = (over: Partial<QuickPrompt> = {}): QuickPrompt => ({
   ...over,
 });
 
+const action = (over: Partial<ComposerAction> = {}): ComposerAction => ({
+  title: { zh: "总结", en: "Summarize" },
+  prompt: { zh: "请总结", en: "Summarize this" },
+  icon_name: "file-text",
+  behavior: "prefill",
+  ...over,
+});
+
 describe("shouldWriteWelcomeManifest", () => {
   it("writes only after a successful load when the editor is dirty", () => {
     expect(shouldWriteWelcomeManifest("ready", true)).toBe(true);
     expect(shouldWriteWelcomeManifest("ready", false)).toBe(false);
     expect(shouldWriteWelcomeManifest("loading", true)).toBe(false);
     expect(shouldWriteWelcomeManifest("error", true)).toBe(false);
+  });
+});
+
+describe("validateComposerActions", () => {
+  it("rejects actions missing a title or prompt", () => {
+    expect(
+      validateComposerActions([
+        action(),
+        action({ title: { zh: "", en: "" } }),
+      ]),
+    ).toEqual({ valid: false, index: 1 });
+  });
+
+  it("accepts complete actions", () => {
+    expect(validateComposerActions([action()])).toEqual({ valid: true });
+  });
+});
+
+describe("saveManifestBeforeAgentUpdate", () => {
+  it("does not update the agent when manifest persistence fails", async () => {
+    const updateAgent = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      saveManifestBeforeAgentUpdate(async () => {
+        throw new Error("workspace write failed");
+      }, updateAgent),
+    ).rejects.toThrow("workspace write failed");
+
+    expect(updateAgent).not.toHaveBeenCalled();
+  });
+
+  it("does not update the agent when the manifest is invalid", async () => {
+    const updateAgent = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      saveManifestBeforeAgentUpdate(async () => "invalid-json", updateAgent),
+    ).resolves.toBe("manifest-invalid");
+
+    expect(updateAgent).not.toHaveBeenCalled();
   });
 });
 
@@ -95,6 +148,35 @@ describe("mergeWelcomeIntoManifest", () => {
     );
     expect(merged.welcome_message).toEqual({ zh: "你好", en: "Hi" });
     expect(merged.quick_prompts).toEqual([prompt()]);
+  });
+
+  it("persists composer actions without changing welcome cards", () => {
+    const existingCard = prompt();
+    const merged = mergeWelcomeIntoManifest(
+      { quick_prompts: [existingCard], other: "preserved" },
+      { quick_prompts: [existingCard], composer_actions: [action()] },
+    );
+
+    expect(merged.quick_prompts).toEqual([existingCard]);
+    expect(merged.composer_actions).toEqual([action()]);
+    expect(merged.other).toBe("preserved");
+  });
+});
+
+describe("normalizeComposerActions / serializeComposerActions", () => {
+  it("defaults missing fields and omits empty actions", () => {
+    expect(normalizeComposerActions([{ title: { zh: "总结" } }])).toEqual([
+      {
+        title: { zh: "总结", en: "" },
+        prompt: { zh: "", en: "" },
+        icon_name: null,
+        behavior: "prefill",
+      },
+    ]);
+    expect(
+      filterComposerActions([action(), action({ prompt: { zh: "", en: "" } })]),
+    ).toHaveLength(1);
+    expect(serializeComposerActions([action()])).toEqual([action()]);
   });
 });
 

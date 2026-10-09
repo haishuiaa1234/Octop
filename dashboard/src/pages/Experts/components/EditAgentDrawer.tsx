@@ -56,7 +56,9 @@ import WelcomeConfig, { type WelcomeConfigRef } from "./WelcomeConfig";
 import {
   mergeWelcomeIntoManifest,
   parseManifestObject,
+  saveManifestBeforeAgentUpdate,
   shouldWriteWelcomeManifest,
+  validateComposerActions,
   type WelcomeConfigData,
 } from "./welcomeManifest";
 import { fetchConfigMdFiles } from "./expertFileGroups";
@@ -442,42 +444,63 @@ function EditAgentDrawerBody({
       // or the user never touched 页面配置, so a name/model save cannot
       // clobber bilingual copy or extra manifest keys.
       const welcomeSnap = welcomeConfigRef.current?.getSnapshot();
-      if (
+      const shouldSaveWelcome = Boolean(
         welcomeSnap &&
-        isAgentChatReady(agent.state) &&
-        shouldWriteWelcomeManifest(welcomeSnap.status, welcomeSnap.dirty)
-      ) {
-        try {
-          const result = await persistWelcomeManifest(
-            agent.agent_id,
-            welcomeSnap.data,
+          isAgentChatReady(agent.state) &&
+          shouldWriteWelcomeManifest(welcomeSnap.status, welcomeSnap.dirty),
+      );
+      if (shouldSaveWelcome && welcomeSnap) {
+        const validation = validateComposerActions(
+          welcomeSnap.data.composer_actions ?? [],
+        );
+        if (!validation.valid) {
+          message.error(
+            t("experts.composerActionIncomplete", {
+              number: validation.index + 1,
+            }),
           );
-          if (result === "invalid-json") {
-            message.warning(t("experts.manifestInvalidJson"));
-          }
-        } catch (manifestErr) {
-          message.warning(
-            apiErrorMessage(manifestErr, t("experts.manifestWriteFailed"), t),
-          );
+          return;
         }
       }
 
       const stored = form.getFieldsValue(true) as EditFormValues;
-      await request(`/agents/${agent.agent_id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: values.name,
-          description: values.description || null,
-          is_shared: values.is_shared ?? false,
-          default_model: defaultModelFromForm(values.default_model),
-          color: nextColor,
-          config: nextConfig,
-          welcome_message: stored.welcome_message ?? "",
-          knowledge_base_ids: stored.knowledge_base_ids ?? [],
-          mcp_servers: stored.mcp_servers ?? [],
-          ...buildAgentRuntimeRequest(values, { clearMissing: true }),
-        }),
-      });
+      const updateAgent = () =>
+        request(`/agents/${agent.agent_id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: values.name,
+            description: values.description || null,
+            is_shared: values.is_shared ?? false,
+            default_model: defaultModelFromForm(values.default_model),
+            color: nextColor,
+            config: nextConfig,
+            welcome_message: stored.welcome_message ?? "",
+            knowledge_base_ids: stored.knowledge_base_ids ?? [],
+            mcp_servers: stored.mcp_servers ?? [],
+            ...buildAgentRuntimeRequest(values, { clearMissing: true }),
+          }),
+        });
+
+      if (shouldSaveWelcome && welcomeSnap) {
+        let saveResult: "saved" | "manifest-invalid";
+        try {
+          saveResult = await saveManifestBeforeAgentUpdate(
+            () => persistWelcomeManifest(agent.agent_id, welcomeSnap.data),
+            updateAgent,
+          );
+        } catch (manifestErr) {
+          message.error(
+            apiErrorMessage(manifestErr, t("experts.manifestWriteFailed"), t),
+          );
+          return;
+        }
+        if (saveResult === "manifest-invalid") {
+          message.error(t("experts.manifestInvalidJson"));
+          return;
+        }
+      } else {
+        await updateAgent();
+      }
 
       if (!skillPackagesSupported) {
         try {

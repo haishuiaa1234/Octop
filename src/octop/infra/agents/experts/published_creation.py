@@ -18,6 +18,7 @@ from octop.infra.agents.experts.avatar import (
 )
 from octop.infra.agents.experts.catalog import (
     MANIFEST_FILENAME,
+    apply_workspace_composer_actions,
     apply_workspace_quick_prompts,
     parse_task_examples,
     read_workspace_manifest_task_examples,
@@ -59,6 +60,7 @@ class PublishedExpertInstallOptions:
     composer_copies: tuple[tuple[str, Any], ...] = ()
     composer_report: Any = None
     quick_prompts: list[dict[str, Any]] | None = None
+    composer_actions: list[dict[str, Any]] | None = None
 
 
 def _snapshot_dir(services: Any, expert_id: str) -> Path:
@@ -381,6 +383,8 @@ async def install_published_expert(
             )
         if options.quick_prompts is not None:
             await apply_workspace_quick_prompts(workspace, options.quick_prompts)
+        if options.composer_actions is not None:
+            await apply_workspace_composer_actions(workspace, options.composer_actions)
 
     created = await registry.create(
         AgentCreateSpec(

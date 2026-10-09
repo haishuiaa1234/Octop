@@ -132,6 +132,107 @@ beforeEach(() => {
 });
 
 describe("ChatInput prefill clear-on-send", () => {
+  it("renders expert composer actions and prefills without sending", () => {
+    const onSend = vi.fn();
+    render(
+      <ChatInput
+        onSend={onSend}
+        onCancel={vi.fn()}
+        onNewChat={vi.fn()}
+        isStreaming={false}
+        agentId="agent-1"
+        composerActions={[
+          {
+            title: "Summarize",
+            prompt: "Summarize the following",
+            icon_name: "file-text",
+            behavior: "prefill",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
+
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+      "Summarize the following",
+    );
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("sends the configured prompt immediately without replacing the draft", () => {
+    const onSend = vi.fn();
+    render(
+      <ChatInput
+        onSend={onSend}
+        onCancel={vi.fn()}
+        onNewChat={vi.fn()}
+        isStreaming={false}
+        agentId="agent-1"
+        composerActions={[
+          {
+            title: "Send summary",
+            prompt: "Summarize this report",
+            behavior: "send",
+          },
+        ]}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "unfinished draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send summary" }));
+
+    expect(onSend).toHaveBeenCalledWith("Summarize this report", undefined);
+    expect(textarea.value).toBe("unfinished draft");
+  });
+
+  it("does not render an action row when no actions are configured", () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        onCancel={vi.fn()}
+        onNewChat={vi.fn()}
+        isStreaming={false}
+        agentId="agent-1"
+      />,
+    );
+
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+  });
+
+  it("queues an immediate action during streaming without replacing the draft", () => {
+    const onSend = vi.fn();
+    const onQueue = vi.fn(() => "ok" as const);
+    render(
+      <ChatInput
+        onSend={onSend}
+        onQueue={onQueue}
+        onCancel={vi.fn()}
+        onNewChat={vi.fn()}
+        isStreaming
+        agentId="agent-1"
+        composerActions={[
+          {
+            title: "Queue summary",
+            prompt: "Summarize the report",
+            behavior: "send",
+          },
+        ]}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "unfinished draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Queue summary" }));
+
+    expect(onQueue).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "Summarize the report" }),
+    );
+    expect(onSend).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("unfinished draft");
+  });
+
   it("does not restore stale initialText after send (skill-card prefill path)", async () => {
     // Mirrors welcome skill/quick-card flow:
     // 1) setPrefillText fills the composer imperatively while parent initialText

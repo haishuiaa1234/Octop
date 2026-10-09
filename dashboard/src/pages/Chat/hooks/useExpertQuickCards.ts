@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { agentChatApi } from "../../../api/modules/agentChat";
+import type { ChatComposerAction } from "../../../api/modules/agentChat";
 import type { OctopAgent } from "../../../context/AgentContext";
 import { pickLocale, type LocalizedText } from "../../../utils/localizedText";
 import type { WelcomeQuickCard } from "../components/WelcomeScreen";
@@ -30,10 +31,14 @@ function mapQuickPrompts(
 
 export function useExpertChatWelcome(agent: OctopAgent | null): {
   quickCards: WelcomeQuickCard[];
+  composerActions: ChatComposerAction[];
   welcomeSuffix: string | null;
 } {
   const { i18n } = useTranslation();
   const [fetchedCards, setFetchedCards] = useState<WelcomeQuickCard[]>([]);
+  const [fetchedActions, setFetchedActions] = useState<ChatComposerAction[]>(
+    [],
+  );
   const [welcomeSuffix, setWelcomeSuffix] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,15 +47,26 @@ export function useExpertChatWelcome(agent: OctopAgent | null): {
     const agentId = agent?.agent_id;
     if (!agentId) {
       setFetchedCards([]);
+      setFetchedActions([]);
       setWelcomeSuffix(null);
       return;
     }
 
+    setFetchedCards([]);
+    setFetchedActions([]);
     void agentChatApi
       .welcome(agentId)
       .then((data) => {
         if (cancelled) return;
         setFetchedCards(mapQuickPrompts(data.quick_prompts, locale));
+        setFetchedActions(
+          (data.composer_actions ?? []).map((action) => ({
+            title: pickLocale(action.title, locale),
+            prompt: pickLocale(action.prompt, locale),
+            icon_name: action.icon_name ?? null,
+            behavior: action.behavior ?? "prefill",
+          })),
+        );
         setWelcomeSuffix(
           pickLocale(data.welcome_message, locale, { crossFallback: false }) ||
             null,
@@ -59,6 +75,7 @@ export function useExpertChatWelcome(agent: OctopAgent | null): {
       .catch(() => {
         if (!cancelled) {
           setFetchedCards([]);
+          setFetchedActions([]);
           setWelcomeSuffix(null);
         }
       });
@@ -68,5 +85,9 @@ export function useExpertChatWelcome(agent: OctopAgent | null): {
     };
   }, [agent?.agent_id, i18n.language]);
 
-  return { quickCards: fetchedCards, welcomeSuffix };
+  return {
+    quickCards: fetchedCards,
+    composerActions: fetchedActions,
+    welcomeSuffix,
+  };
 }

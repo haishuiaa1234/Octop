@@ -10,6 +10,7 @@ from typing import Any, Literal
 from octop.infra.agents.experts.avatar import materialize_remote_icon_url
 from octop.infra.agents.experts.catalog import (
     WORKSPACE_MANIFEST_PATH,
+    apply_workspace_composer_actions,
     apply_workspace_quick_prompts,
     build_create_spec_from_expert,
 )
@@ -65,6 +66,7 @@ class SkillHubMarketAgentCreateOptions:
     composer_copies: tuple[tuple[str, Any], ...] = ()
     composer_report: Any = None
     quick_prompts: list[dict[str, Any]] | None = None
+    composer_actions: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -352,12 +354,15 @@ async def create_agent_from_skillhub_skillset(
             )
         if options.quick_prompts is not None:
             await apply_workspace_quick_prompts(workspace, options.quick_prompts)
+        if options.composer_actions is not None:
+            await apply_workspace_composer_actions(workspace, options.composer_actions)
 
     patch = options.workspace_patch
     need_apply = (
         (patch is not None and not getattr(patch, "is_empty", lambda: True)())
         or bool(options.composer_copies)
         or options.quick_prompts is not None
+        or options.composer_actions is not None
     )
     row = await registry.create(
         spec,

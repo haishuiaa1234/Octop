@@ -250,8 +250,11 @@ function ChatPageInner() {
     void refreshAgents({ silent: true });
   }, [refreshAgents]);
 
-  const { quickCards: expertQuickCards, welcomeSuffix } =
-    useExpertChatWelcome(activeAgent);
+  const {
+    quickCards: expertQuickCards,
+    composerActions: expertComposerActions,
+    welcomeSuffix,
+  } = useExpertChatWelcome(activeAgent);
   const { skills: chatSkills } = useSkills(
     chatSkillCatalogAgentId(resolvedAgentId, agentChatReady, agentsLoading),
   );
@@ -1579,6 +1582,7 @@ function ChatPageInner() {
             ) : null}
             <ChatInput
               ref={chatInputRef}
+              composerActions={expertComposerActions}
               onSend={wrappedHandleSend}
               onQueue={enqueueQueued}
               queuedItems={queuedItems}

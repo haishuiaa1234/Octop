@@ -144,6 +144,7 @@ class Expert:
     prompt_files: list[str] = field(default_factory=list)
     """Persona markdown filenames declared in the manifest (dashboard hint)."""
     quick_prompts: tuple[ExpertQuickPrompt, ...] = ()
+    composer_actions: tuple[dict[str, Any], ...] = ()
 
 
 def discover_seed_paths(expert_dir: Path) -> list[str]:
@@ -277,6 +278,7 @@ def welcome_payload_from_manifest_data(data: dict[str, Any]) -> dict[str, Any]:
             "en": _coerce_label(wm, "en"),
         },
         "quick_prompts": [_quick_prompt_api_dict(p) for p in _parse_quick_prompts(data)],
+        "composer_actions": parse_composer_actions(data),
     }
 
 
@@ -289,6 +291,7 @@ def welcome_payload_from_expert(expert: Expert) -> dict[str, Any]:
             "en": summary.welcome_message_en,
         },
         "quick_prompts": [_quick_prompt_api_dict(p) for p in expert.quick_prompts],
+        "composer_actions": list(expert.composer_actions),
     }
 
 
@@ -297,7 +300,41 @@ def welcome_payload_has_content(payload: dict[str, Any]) -> bool:
     if isinstance(wm, dict) and (wm.get("zh") or wm.get("en")):
         return True
     prompts = payload.get("quick_prompts")
-    return isinstance(prompts, list) and len(prompts) > 0
+    if isinstance(prompts, list) and len(prompts) > 0:
+        return True
+    actions = payload.get("composer_actions")
+    return isinstance(actions, list) and len(actions) > 0
+
+
+def parse_composer_actions(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize prompt actions displayed above the chat composer."""
+    raw = data.get("composer_actions")
+    if not isinstance(raw, list):
+        return []
+    actions: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = {
+            "zh": _coerce_label(item.get("title"), "zh"),
+            "en": _coerce_label(item.get("title"), "en"),
+        }
+        prompt = {
+            "zh": _coerce_label(item.get("prompt"), "zh"),
+            "en": _coerce_label(item.get("prompt"), "en"),
+        }
+        if not any(title.values()) or not any(prompt.values()):
+            continue
+        behavior = item.get("behavior")
+        actions.append(
+            {
+                "title": title,
+                "prompt": prompt,
+                "icon_name": item.get("icon_name") if item.get("icon_name") else None,
+                "behavior": behavior if behavior in {"prefill", "send"} else "prefill",
+            }
+        )
+    return actions
 
 
 def default_welcome_payload(catalog: ExpertCatalog | None = None) -> dict[str, Any]:
@@ -415,6 +452,32 @@ async def apply_workspace_quick_prompts(
         for prompt in parsed_prompts
         if _quick_prompts_have_content(prompt)
     ]
+    payload = json.dumps(existing, ensure_ascii=False, indent=2).encode("utf-8")
+    await workspace.aupload_many([(WORKSPACE_MANIFEST_PATH, payload)])
+
+
+async def apply_workspace_composer_actions(
+    workspace: BackendWorkspace,
+    composer_actions: list[dict[str, Any]],
+) -> None:
+    """Merge composer prompt actions into workspace ``.octop/manifest.json``."""
+    text = await read_workspace_manifest_text(workspace)
+    existing: dict[str, Any] = {}
+    if text is not None and str(text).strip():
+        try:
+            parsed: object = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise OctopError(
+                ErrorCode.SLASH_BAD_ARGS,
+                "workspace manifest.json is not valid JSON",
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise OctopError(
+                ErrorCode.SLASH_BAD_ARGS,
+                "workspace manifest.json is not a JSON object",
+            )
+        existing = parsed
+    existing["composer_actions"] = parse_composer_actions({"composer_actions": composer_actions})
     payload = json.dumps(existing, ensure_ascii=False, indent=2).encode("utf-8")
     await workspace.aupload_many([(WORKSPACE_MANIFEST_PATH, payload)])
 
@@ -825,6 +888,7 @@ class ExpertCatalog:
                     files=seed_paths,
                     prompt_files=prompt_files,
                     quick_prompts=summary.quick_prompts,
+                    composer_actions=tuple(parse_composer_actions(data)),
                 )
                 dirs[ex_id] = entry
                 if from_primary:

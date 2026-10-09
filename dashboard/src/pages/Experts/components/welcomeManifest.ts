@@ -8,9 +8,17 @@ export interface QuickPrompt {
   icon_name: string | null;
 }
 
+export interface ComposerAction {
+  title: LocalizedText;
+  prompt: LocalizedText;
+  icon_name: string | null;
+  behavior: "prefill" | "send";
+}
+
 export interface WelcomeConfigData {
   welcome_message?: LocalizedText;
   quick_prompts: QuickPrompt[];
+  composer_actions?: ComposerAction[];
 }
 
 export type WelcomeManifestStatus = "loading" | "ready" | "error";
@@ -27,6 +35,26 @@ export function shouldWriteWelcomeManifest(
   dirty: boolean,
 ): boolean {
   return status === "ready" && dirty;
+}
+
+export function validateComposerActions(
+  actions: ComposerAction[],
+): { valid: true } | { valid: false; index: number } {
+  const index = actions.findIndex(
+    (action) =>
+      (!action.title?.zh?.trim() && !action.title?.en?.trim()) ||
+      (!action.prompt?.zh?.trim() && !action.prompt?.en?.trim()),
+  );
+  return index === -1 ? { valid: true } : { valid: false, index };
+}
+
+export async function saveManifestBeforeAgentUpdate(
+  persistManifest: () => Promise<"ok" | "invalid-json">,
+  updateAgent: () => Promise<unknown>,
+): Promise<"saved" | "manifest-invalid"> {
+  if ((await persistManifest()) === "invalid-json") return "manifest-invalid";
+  await updateAgent();
+  return "saved";
 }
 
 export function parseManifestObject(
@@ -91,6 +119,45 @@ export function serializeQuickPrompts(prompts: QuickPrompt[]): QuickPrompt[] {
   }));
 }
 
+export function filterComposerActions(
+  actions: ComposerAction[],
+): ComposerAction[] {
+  return actions.filter(
+    (action) =>
+      (action.title?.zh || action.title?.en) &&
+      (action.prompt?.zh || action.prompt?.en),
+  );
+}
+
+export function normalizeComposerActions(
+  actions:
+    | Array<{
+        title?: LocalizedText;
+        prompt?: LocalizedText;
+        icon_name?: string | null;
+        behavior?: string;
+      }>
+    | undefined,
+): ComposerAction[] {
+  return (actions ?? []).map((action) => ({
+    title: { zh: action.title?.zh ?? "", en: action.title?.en ?? "" },
+    prompt: { zh: action.prompt?.zh ?? "", en: action.prompt?.en ?? "" },
+    icon_name: action.icon_name ?? null,
+    behavior: action.behavior === "send" ? "send" : "prefill",
+  }));
+}
+
+export function serializeComposerActions(
+  actions: ComposerAction[],
+): ComposerAction[] {
+  return filterComposerActions(actions).map((action) => ({
+    title: { zh: action.title?.zh ?? "", en: action.title?.en ?? "" },
+    prompt: { zh: action.prompt?.zh ?? "", en: action.prompt?.en ?? "" },
+    icon_name: action.icon_name ?? null,
+    behavior: action.behavior === "send" ? "send" : "prefill",
+  }));
+}
+
 /** Merge welcome fields into an existing workspace manifest without dropping other keys. */
 export function mergeWelcomeIntoManifest(
   existing: Record<string, unknown>,
@@ -108,5 +175,8 @@ export function mergeWelcomeIntoManifest(
     }
   }
   next.quick_prompts = filterQuickPrompts(patch.quick_prompts);
+  if (patch.composer_actions !== undefined) {
+    next.composer_actions = serializeComposerActions(patch.composer_actions);
+  }
   return next;
 }
