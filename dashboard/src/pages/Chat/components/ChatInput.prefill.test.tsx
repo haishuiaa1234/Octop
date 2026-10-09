@@ -217,11 +217,13 @@ describe("ChatInput prefill clear-on-send", () => {
     );
 
     const actionGroup = screen.getByRole("group");
+    const composerColumn = screen.getByTestId("composer-column");
     const textarea = screen.getByRole("textbox");
     const inputWrapper = textarea.parentElement?.parentElement;
 
-    expect(actionGroup.parentElement).toBe(inputWrapper?.parentElement);
-    expect(actionGroup.nextElementSibling).toBe(inputWrapper);
+    expect(actionGroup.parentElement).toBe(composerColumn);
+    expect(composerColumn.nextElementSibling).toBe(inputWrapper);
+    expect(inputWrapper?.parentElement).toBe(composerColumn.parentElement);
     expect(actionGroup.querySelectorAll("button")).toHaveLength(2);
   });
 

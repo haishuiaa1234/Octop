@@ -769,13 +769,15 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onReclaim={handleReclaimQueued}
           />
         )}
-        <ChatInputComposerActions
-          actions={composerActions}
-          label={t("experts.composerActionsTitle")}
-          disabled={disabled}
-          onPrefill={prefillComposerAction}
-          onSend={(prompt) => submitMessage(prompt)}
-        />
+        <div className={styles.composerColumn} data-testid="composer-column">
+          <ChatInputComposerActions
+            actions={composerActions}
+            label={t("experts.composerActionsTitle")}
+            disabled={disabled}
+            onPrefill={prefillComposerAction}
+            onSend={(prompt) => submitMessage(prompt)}
+          />
+        </div>
         <div className={styles.inputWrapper}>
           <ChatInputPreviewBar
             attachments={attachments}
