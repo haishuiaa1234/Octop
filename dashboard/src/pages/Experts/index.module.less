@@ -2332,6 +2332,17 @@
   box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
 }
 
+.defaultColorOption {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--fn-border-primary);
+  border-radius: 6px;
+  background: var(--fn-bg-primary);
+  color: var(--fn-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .iconPicker {
   display: flex;
   gap: 4px;
@@ -2437,6 +2448,69 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.composerActionColorPicker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.customColorPicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fn-text-secondary);
+  font-size: 12px;
+
+  input {
+    width: 30px;
+    height: 28px;
+    padding: 2px;
+    border: 1px solid var(--fn-border-primary);
+    border-radius: 6px;
+    background: var(--fn-bg-primary);
+    cursor: pointer;
+  }
+
+  code {
+    min-width: 64px;
+    color: var(--fn-text-tertiary);
+  }
+}
+
+.composerActionHexInput {
+  width: 128px;
+  flex: 0 1 128px;
+}
+
+.composerActionPreview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--fn-border-secondary);
+  color: var(--fn-text-tertiary);
+  font-size: 12px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    max-width: 220px;
+    padding: 5px 10px;
+    border: 1px solid var(--fn-border-secondary);
+    border-radius: 6px;
+    background: var(--fn-bg-elevated, #fff);
+    color: var(--fn-text-secondary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
 }
 
 /* ── Publish expert drawer ─────────────────────────────────────── */

@@ -12,6 +12,7 @@ import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { agentChatApi } from "@/api/modules/agentChat";
 import { iconForName } from "./iconForName";
 import { pastelIconBackground } from "@/utils/pastelIconBackground";
+import { contrastingTextColor } from "@/utils/color";
 import styles from "../index.module.less";
 import type {
   ComposerAction,
@@ -50,6 +51,15 @@ const defaultComposerAction: ComposerAction = {
   icon_name: null,
   behavior: "prefill",
 };
+
+const composerActionColors = [
+  "#2563eb",
+  "#059669",
+  "#d97706",
+  "#db2777",
+  "#7c3aed",
+  "#475569",
+];
 
 const presetColors = [
   "#e8f4ff",
@@ -99,6 +109,9 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
     const [composerActions, setComposerActions] = useState<ComposerAction[]>(
       () => (agentId ? [] : normalizeComposerActions(initialActions)),
     );
+    const [composerColorDrafts, setComposerColorDrafts] = useState<
+      Record<number, string>
+    >({});
     const currentLang = i18n.language.startsWith("zh") ? "zh" : "en";
     const markDirty = () => {
       if (!disabled) setDirty(true);
@@ -131,6 +144,7 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
       }
       setStatus("loading");
       setDirty(false);
+      setComposerColorDrafts({});
       try {
         const data = await agentChatApi.welcome(agentId);
         setQuickPrompts(normalizeQuickPrompts(data.quick_prompts));
@@ -155,6 +169,7 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
     useEffect(() => {
       if (agentId || dirty) return;
       setComposerActions(normalizeComposerActions(initialActions));
+      setComposerColorDrafts({});
     }, [agentId, dirty, initialActions]);
 
     const addQuickPrompt = () => {
@@ -212,11 +227,41 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
       if (disabled) return;
       markDirty();
       setComposerActions((current) => current.filter((_, i) => i !== index));
+      setComposerColorDrafts((current) =>
+        Object.fromEntries(
+          Object.entries(current)
+            .filter(([key]) => Number(key) !== index)
+            .map(([key, value]) => [
+              Number(key) > index ? Number(key) - 1 : Number(key),
+              value,
+            ]),
+        ),
+      );
+    };
+
+    const updateComposerActionColor = (index: number, color: string) => {
+      setComposerColorDrafts((current) => ({ ...current, [index]: color }));
+      if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+        updateComposerAction(index, "color", color);
+      }
+    };
+
+    const resetComposerActionColor = (index: number) => {
+      if (disabled) return;
+      markDirty();
+      setComposerColorDrafts((current) => ({ ...current, [index]: "" }));
+      setComposerActions((current) =>
+        current.map((action, i) => {
+          if (i !== index) return action;
+          const { color: _color, ...withoutColor } = action;
+          return withoutColor;
+        }),
+      );
     };
 
     const updateComposerAction = (
       index: number,
-      field: "icon_name" | "behavior",
+      field: "icon_name" | "behavior" | "color",
       value: string | null,
     ) => {
       if (disabled) return;
@@ -594,6 +639,120 @@ const WelcomeConfig = forwardRef<WelcomeConfigRef, WelcomeConfigProps>(
                               {iconForName(icon, 16)}
                             </button>
                           ))}
+                        </div>
+                      </div>
+                      <div className={styles.quickPromptFieldFull}>
+                        <label>{t("experts.composerActionColor")}</label>
+                        <div className={styles.composerActionColorPicker}>
+                          <div className={styles.colorPicker}>
+                            <button
+                              type="button"
+                              aria-pressed={!action.color}
+                              disabled={disabled}
+                              className={`${styles.defaultColorOption}${
+                                !action.color
+                                  ? ` ${styles.colorOptionActive}`
+                                  : ""
+                              }`}
+                              onClick={() => resetComposerActionColor(index)}
+                            >
+                              {t("experts.defaultColor")}
+                            </button>
+                            {composerActionColors.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                aria-label={color}
+                                aria-pressed={action.color === color}
+                                disabled={disabled}
+                                className={`${styles.colorOption}${
+                                  action.color === color
+                                    ? ` ${styles.colorOptionActive}`
+                                    : ""
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={() =>
+                                  updateComposerActionColor(index, color)
+                                }
+                              />
+                            ))}
+                          </div>
+                          <label className={styles.customColorPicker}>
+                            <span>
+                              {t("experts.composerActionCustomColor")}
+                            </span>
+                            <input
+                              type="color"
+                              aria-label={t(
+                                "experts.composerActionCustomColor",
+                              )}
+                              value={action.color ?? "#2563eb"}
+                              disabled={disabled}
+                              onChange={(event) =>
+                                updateComposerActionColor(
+                                  index,
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <code>
+                              {action.color ?? t("experts.defaultColor")}
+                            </code>
+                          </label>
+                          <Input
+                            aria-label={t("experts.composerActionHexColor")}
+                            value={
+                              (composerColorDrafts[index] || action.color) ??
+                              "#2563eb"
+                            }
+                            maxLength={7}
+                            className={styles.composerActionHexInput}
+                            disabled={disabled}
+                            status={
+                              composerColorDrafts[index] &&
+                              !/^#[0-9a-fA-F]{6}$/.test(
+                                composerColorDrafts[index],
+                              )
+                                ? "error"
+                                : undefined
+                            }
+                            onChange={(event) =>
+                              updateComposerActionColor(
+                                index,
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className={styles.composerActionPreview}>
+                          <span>{t("experts.quickPromptPreview")}</span>
+                          <button
+                            type="button"
+                            aria-label={
+                              action.title[currentLang] ||
+                              t("experts.composerActionTitlePlaceholder")
+                            }
+                            data-composer-action-preview-index={index}
+                            style={
+                              action.color
+                                ? {
+                                    backgroundColor: action.color,
+                                    borderColor: action.color,
+                                    color: contrastingTextColor(action.color),
+                                  }
+                                : undefined
+                            }
+                          >
+                            {action.icon_name && (
+                              <span aria-hidden="true">
+                                {iconForName(action.icon_name, 15)}
+                              </span>
+                            )}
+                            <span>
+                              {action.title[currentLang] ||
+                                t("experts.composerActionTitlePlaceholder")}
+                            </span>
+                          </button>
                         </div>
                       </div>
                     </div>

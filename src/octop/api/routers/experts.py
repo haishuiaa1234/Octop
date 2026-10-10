@@ -263,6 +263,7 @@ def _composer_actions_from_body(
             "prompt": {"zh": item.prompt.zh, "en": item.prompt.en},
             "icon_name": item.icon_name,
             "behavior": item.behavior,
+            "color": item.color,
         }
         for item in body.composer_actions
     ]
@@ -307,6 +308,7 @@ class ComposerActionResponse(BaseModel):
     prompt: LocalizedTextResponse
     icon_name: str | None = None
     behavior: Literal["prefill", "send"] = "prefill"
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
 
 
 class ExpertHubItemResponse(BaseModel):

@@ -78,6 +78,7 @@ async def test_apply_workspace_composer_actions_preserves_manifest_fields() -> N
                     "title": {"zh": "总结", "en": "Summarize"},
                     "prompt": {"zh": "总结", "en": "Summarize"},
                     "behavior": "send",
+                    "color": "#12aBcD",
                 }
             ],
         )
@@ -86,6 +87,7 @@ async def test_apply_workspace_composer_actions_preserves_manifest_fields() -> N
         assert manifest["id"] == "expert"
         assert manifest["quick_prompts"] == [{"title": "Keep"}]
         assert manifest["composer_actions"][0]["behavior"] == "send"
+        assert manifest["composer_actions"][0]["color"] == "#12aBcD"
 
 
 @pytest.mark.asyncio
@@ -168,11 +170,13 @@ def test_parse_composer_actions_keeps_supported_actions_and_defaults() -> None:
                     "prompt": {"zh": "Summarize", "en": "Summarize"},
                     "icon_name": "file-text",
                     "behavior": "send",
+                    "color": "#12aBcD",
                 },
                 {
                     "title": {"zh": "Draft", "en": "Draft"},
                     "prompt": {"zh": "Draft", "en": "Draft"},
                     "behavior": "unknown",
+                    "color": "rgb(1, 2, 3)",
                 },
             ]
         }
@@ -180,8 +184,10 @@ def test_parse_composer_actions_keeps_supported_actions_and_defaults() -> None:
 
     assert actions[0]["behavior"] == "send"
     assert actions[0]["icon_name"] == "file-text"
+    assert actions[0]["color"] == "#12aBcD"
     assert actions[1]["behavior"] == "prefill"
     assert actions[1]["icon_name"] is None
+    assert "color" not in actions[1]
     assert parse_composer_actions({}) == []
 
 
@@ -193,6 +199,7 @@ def test_welcome_payload_includes_composer_actions() -> None:
                     "title": {"zh": "Start", "en": "Start"},
                     "prompt": {"zh": "Analyze", "en": "Analyze"},
                     "behavior": "prefill",
+                    "color": "#12aBcD",
                 }
             ]
         }
@@ -200,6 +207,36 @@ def test_welcome_payload_includes_composer_actions() -> None:
 
     assert payload["composer_actions"][0]["title"]["en"] == "Start"
     assert payload["composer_actions"][0]["behavior"] == "prefill"
+    assert payload["composer_actions"][0]["color"] == "#12aBcD"
+
+
+def test_composer_action_api_body_preserves_hex_color() -> None:
+    from octop.api.routers.experts import (
+        ComposerActionResponse,
+        FromExpertBody,
+        _composer_actions_from_body,
+    )
+
+    body = FromExpertBody(
+        composer_actions=[
+            {
+                "title": {"zh": "总结"},
+                "prompt": {"zh": "总结内容"},
+                "color": "#123ABC",
+            }
+        ]
+    )
+    assert _composer_actions_from_body(body) == [
+        {
+            "title": {"zh": "总结", "en": ""},
+            "prompt": {"zh": "总结内容", "en": ""},
+            "icon_name": None,
+            "behavior": "prefill",
+            "color": "#123ABC",
+        }
+    ]
+    with pytest.raises(ValueError):
+        ComposerActionResponse(title={"zh": "总结"}, prompt={"zh": "总结内容"}, color="red")
 
 
 def test_parse_task_examples_missing_field_is_none() -> None:

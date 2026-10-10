@@ -65,6 +65,7 @@ export function useExpertChatWelcome(agent: OctopAgent | null): {
             prompt: pickLocale(action.prompt, locale),
             icon_name: action.icon_name ?? null,
             behavior: action.behavior ?? "prefill",
+            ...(action.color ? { color: action.color } : {}),
           })),
         );
         setWelcomeSuffix(

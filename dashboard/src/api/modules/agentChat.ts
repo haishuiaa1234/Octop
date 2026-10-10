@@ -6,6 +6,7 @@ export interface ChatComposerAction {
   prompt: string;
   icon_name: string | null;
   behavior: "prefill" | "send";
+  color?: string;
 }
 
 export interface ChatComposerActionDto {
@@ -13,6 +14,7 @@ export interface ChatComposerActionDto {
   prompt: LocalizedText;
   icon_name?: string | null;
   behavior?: "prefill" | "send";
+  color?: string;
 }
 
 export interface ChatWelcomeResponse {

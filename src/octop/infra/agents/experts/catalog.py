@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -326,12 +327,17 @@ def parse_composer_actions(data: dict[str, Any]) -> list[dict[str, Any]]:
         if not any(title.values()) or not any(prompt.values()):
             continue
         behavior = item.get("behavior")
+        color = item.get("color")
+        normalized_color = (
+            color if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", color) else None
+        )
         actions.append(
             {
                 "title": title,
                 "prompt": prompt,
                 "icon_name": item.get("icon_name") if item.get("icon_name") else None,
                 "behavior": behavior if behavior in {"prefill", "send"} else "prefill",
+                **({"color": normalized_color} if normalized_color else {}),
             }
         )
     return actions

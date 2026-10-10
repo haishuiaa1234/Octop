@@ -178,6 +178,35 @@ describe("normalizeComposerActions / serializeComposerActions", () => {
     ).toHaveLength(1);
     expect(serializeComposerActions([action()])).toEqual([action()]);
   });
+
+  it("preserves valid colors and drops invalid colors", () => {
+    expect(
+      normalizeComposerActions([
+        { title: { zh: "总结" }, color: "#12aBcD" },
+        { title: { zh: "默认" }, color: "red" },
+      ]),
+    ).toEqual([
+      {
+        title: { zh: "总结", en: "" },
+        prompt: { zh: "", en: "" },
+        icon_name: null,
+        behavior: "prefill",
+        color: "#12aBcD",
+      },
+      {
+        title: { zh: "默认", en: "" },
+        prompt: { zh: "", en: "" },
+        icon_name: null,
+        behavior: "prefill",
+      },
+    ]);
+    expect(serializeComposerActions([action({ color: "#123456" })])).toEqual([
+      action({ color: "#123456" }),
+    ]);
+    expect(serializeComposerActions([action({ color: "#12345" })])).toEqual([
+      action(),
+    ]);
+  });
 });
 
 describe("filterQuickPrompts", () => {

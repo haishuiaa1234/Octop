@@ -132,10 +132,14 @@
     border-color var(--fn-transition-fast),
     background-color var(--fn-transition-fast);
 
-  &:hover:not(:disabled) {
+  &:hover:not(:disabled):not([data-colored="true"]) {
     border-color: var(--fn-color-brand);
     color: var(--fn-color-brand);
     background: var(--fn-color-brand-bg);
+  }
+
+  &[data-colored="true"]:hover:not(:disabled) {
+    filter: brightness(0.96);
   }
 
   &:focus-visible {

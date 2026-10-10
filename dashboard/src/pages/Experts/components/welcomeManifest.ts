@@ -1,4 +1,5 @@
 import type { LocalizedText } from "@/utils/localizedText";
+import { isHexColor } from "@/utils/color";
 
 export interface QuickPrompt {
   title: LocalizedText;
@@ -13,6 +14,11 @@ export interface ComposerAction {
   prompt: LocalizedText;
   icon_name: string | null;
   behavior: "prefill" | "send";
+  color?: string;
+}
+
+function normalizeComposerActionColor(color: unknown): string | undefined {
+  return isHexColor(color) ? color : undefined;
 }
 
 export interface WelcomeConfigData {
@@ -136,6 +142,7 @@ export function normalizeComposerActions(
         prompt?: LocalizedText;
         icon_name?: string | null;
         behavior?: string;
+        color?: string;
       }>
     | undefined,
 ): ComposerAction[] {
@@ -144,6 +151,9 @@ export function normalizeComposerActions(
     prompt: { zh: action.prompt?.zh ?? "", en: action.prompt?.en ?? "" },
     icon_name: action.icon_name ?? null,
     behavior: action.behavior === "send" ? "send" : "prefill",
+    ...(normalizeComposerActionColor(action.color)
+      ? { color: normalizeComposerActionColor(action.color) }
+      : {}),
   }));
 }
 
@@ -155,6 +165,9 @@ export function serializeComposerActions(
     prompt: { zh: action.prompt?.zh ?? "", en: action.prompt?.en ?? "" },
     icon_name: action.icon_name ?? null,
     behavior: action.behavior === "send" ? "send" : "prefill",
+    ...(normalizeComposerActionColor(action.color)
+      ? { color: normalizeComposerActionColor(action.color) }
+      : {}),
   }));
 }
 
