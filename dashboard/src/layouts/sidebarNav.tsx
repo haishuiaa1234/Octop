@@ -52,7 +52,6 @@ export interface NavSection {
 export const SIDEBAR_NAV_KEYS = [
   "chat",
   "experts",
-  "open-chatgpt",
   "tasks",
   "token-usage",
   "personalization",
@@ -149,12 +148,6 @@ export function buildNavSections(
           path: "/experts",
           icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
           labelKey: "nav.experts",
-        },
-        {
-          key: "open-chatgpt",
-          path: "/open-chatgpt",
-          icon: <Monitor size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "chatgptLauncher.title",
         },
         {
           key: "tasks",

@@ -22,24 +22,6 @@ export interface SidebarNavLayout {
   items: SidebarNavItemPlacement[];
 }
 
-/** Existing saved layouts predate this launcher; add it without changing explicit hiding. */
-export function ensureOpenChatGPTPlacement(
-  layout: SidebarNavLayout | null,
-): SidebarNavLayout | null {
-  if (!layout || layout.items.some((item) => item.key === "open-chatgpt")) {
-    return layout;
-  }
-  const items = [...layout.items];
-  const expertsIndex = items.findIndex((item) => item.key === "experts");
-  const experts = items[expertsIndex];
-  const placement: SidebarNavItemPlacement = { key: "open-chatgpt" };
-  if (experts && !experts.hidden && experts.group) {
-    placement.group = experts.group;
-  }
-  items.splice(expertsIndex + 1, 0, placement);
-  return { ...layout, items };
-}
-
 export interface SidebarNavEditorState {
   groups: SidebarNavGroup[];
   ungrouped: string[];

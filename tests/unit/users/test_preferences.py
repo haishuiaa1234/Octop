@@ -127,10 +127,10 @@ def test_sidebar_nav_roundtrip_preserves_other_keys() -> None:
     assert '"foo": 1' in merged or '"foo":1' in merged
 
 
-def test_sidebar_nav_accepts_open_chatgpt_launcher() -> None:
-    groups, items = validate_sidebar_nav({"groups": [], "items": [{"key": "open-chatgpt"}]})
-    assert groups == []
-    assert items[0].key == "open-chatgpt"
+def test_sidebar_nav_rejects_removed_open_chatgpt_launcher() -> None:
+    with pytest.raises(OctopError) as ei:
+        validate_sidebar_nav({"groups": [], "items": [{"key": "open-chatgpt"}]})
+    assert ei.value.code is ErrorCode.SLASH_BAD_ARGS
 
 
 def test_sidebar_nav_rejects_unknown_item_and_dangling_group() -> None:

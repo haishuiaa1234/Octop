@@ -23,7 +23,6 @@ SIDEBAR_NAV_KEYS = frozenset(
     {
         "chat",
         "experts",
-        "open-chatgpt",
         "tasks",
         "token-usage",
         "personalization",

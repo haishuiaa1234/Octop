@@ -34,11 +34,7 @@ import {
   type NavItem,
   type NavSection,
 } from "./sidebarNav";
-import {
-  ensureOpenChatGPTPlacement,
-  sectionsFromLayout,
-  type SidebarNavLayout,
-} from "./sidebarNavLayout";
+import { sectionsFromLayout, type SidebarNavLayout } from "./sidebarNavLayout";
 import SidebarNavCustomizer from "./SidebarNavCustomizer";
 import styles from "./Sidebar.module.less";
 import { useWebsites } from "../pages/Websites/useWebsites";
@@ -409,16 +405,12 @@ export default function Sidebar({
   );
   const [savedLayout, setSavedLayout] = useState<SidebarNavLayout | null>(null);
   const [customizerOpen, setCustomizerOpen] = useState(false);
-  const effectiveLayout = useMemo(
-    () => ensureOpenChatGPTPlacement(savedLayout),
-    [savedLayout],
-  );
   const navSections = useMemo(
     () => [
-      ...sectionsFromLayout(catalog, effectiveLayout),
+      ...sectionsFromLayout(catalog, savedLayout),
       ...websiteNavSections(websites, role === "admin"),
     ],
-    [catalog, effectiveLayout, websites, role],
+    [catalog, savedLayout, websites, role],
   );
   const { toggleGroup, isGroupCollapsed } = useNavGroupCollapse(
     navSections,
@@ -559,7 +551,7 @@ export default function Sidebar({
     <SidebarNavCustomizer
       open={customizerOpen}
       catalog={catalog}
-      layout={effectiveLayout}
+      layout={savedLayout}
       onClose={() => setCustomizerOpen(false)}
       onSaved={setSavedLayout}
     />

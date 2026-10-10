@@ -5,7 +5,6 @@ import {
   createGroup,
   deleteGroup,
   editorFromCatalog,
-  ensureOpenChatGPTPlacement,
   layoutFromEditor,
   placeItem,
   sectionsFromLayout,
@@ -38,7 +37,6 @@ describe("sidebarNavLayout", () => {
     expect(editor.ungrouped).toEqual([
       "chat",
       "experts",
-      "open-chatgpt",
       "tasks",
       "token-usage",
     ]);
@@ -50,28 +48,16 @@ describe("sidebarNavLayout", () => {
     expect(editor.hidden).toEqual([]);
   });
 
-  it("keeps the ChatGPT launcher visible for layouts saved before it existed", () => {
+  it("does not restore the removed ChatGPT launcher from saved layouts", () => {
     const oldLayout = {
       groups: [{ id: "settings" }],
-      items: [{ key: "chat" }, { key: "experts" }],
+      items: [{ key: "chat" }, { key: "experts" }, { key: "open-chatgpt" }],
     };
-    const upgraded = ensureOpenChatGPTPlacement(oldLayout);
-    expect(upgraded?.items.map((item) => item.key)).toEqual([
-      "chat",
-      "experts",
-      "open-chatgpt",
-    ]);
     expect(
-      sectionsFromLayout(catalog(), upgraded).flatMap((section) =>
+      sectionsFromLayout(catalog(), oldLayout).flatMap((section) =>
         section.items.map((item) => item.key),
       ),
-    ).toContain("open-chatgpt");
-
-    const hiddenLayout = {
-      ...oldLayout,
-      items: [...oldLayout.items, { key: "open-chatgpt", hidden: true }],
-    };
-    expect(ensureOpenChatGPTPlacement(hiddenLayout)).toBe(hiddenLayout);
+    ).not.toContain("open-chatgpt");
   });
 
   it("omits empty groups and hidden items from the sidebar", () => {
