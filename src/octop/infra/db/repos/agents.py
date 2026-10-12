@@ -47,6 +47,7 @@ class AgentRow:
     knowledge_base_ids: str | None = None
     mcp_servers: str | None = None
     kind: str = "expert"
+    external_api_json: str | None = None
 
     @classmethod
     def from_row(cls, r: DbRow) -> AgentRow:
@@ -88,6 +89,7 @@ class AgentRow:
             knowledge_base_ids=_opt_str(r, "knowledge_base_ids"),
             mcp_servers=_opt_str(r, "mcp_servers"),
             kind=kind,
+            external_api_json=_opt_str(r, "external_api_json"),
         )
 
 
@@ -248,6 +250,7 @@ class AgentRepo:
         welcome_message: str | None | object = UNSET,
         knowledge_base_ids: str | None | object = UNSET,
         mcp_servers: str | None | object = UNSET,
+        external_api_json: str | None | object = UNSET,
     ) -> None:
         fields, params = optional_updates(
             [
@@ -267,6 +270,7 @@ class AgentRepo:
                 ("welcome_message", welcome_message),
                 ("knowledge_base_ids", knowledge_base_ids),
                 ("mcp_servers", mcp_servers),
+                ("external_api_json", external_api_json),
             ]
         )
         if not fields:

@@ -301,6 +301,25 @@ Bundled experts live in `src/octop/infra/agents/experts/library/`
 (en/zh divisions); the catalog is locale-aware via
 `Accept-Language` / user preference.
 
+## External expert API
+
+Owners can enable an API key for an existing expert with
+`PUT /agents/{agent_id}/external-api` (`{ "enabled": true }`). The response
+contains the plaintext `api_key` only when it is first generated or rotated;
+store it securely. Each key is bound to exactly one expert instance.
+
+Third-party clients use the key as `Authorization: Bearer <api-key>`:
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `POST` | `/v1/expert-api/sessions` | Create a multi-turn session. |
+| `POST` | `/v1/expert-api/sessions/{session_id}/messages` | Body `{message, request_id?}`; returns `202` and `task_id`. Reusing `request_id` is idempotent within the session. |
+| `GET` | `/v1/expert-api/tasks/{task_id}` | Poll `queued`, `running`, `completed`, or `failed`; completed tasks include `result`. |
+
+These endpoints are intentionally asynchronous and currently keep sessions and
+tasks in the running process. A multi-worker or restart-durable deployment
+should move this registry to database-backed tasks and a shared queue.
+
 ## Workspace, skills, subagents, memory, files
 
 | Method | Path | Auth | Notes |
