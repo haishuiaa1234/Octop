@@ -8,6 +8,7 @@ import {
   Popconfirm,
   Spin,
   Switch,
+  Tabs,
   Tooltip,
 } from "antd";
 import { Copy, RefreshCw } from "lucide-react";
@@ -19,6 +20,7 @@ import {
 import { apiErrorMessage } from "../../../utils/apiError";
 import { copyText } from "../../../utils/copyText";
 import { message } from "../../../utils/antdMessage";
+import ExternalApiGuide from "./ExternalApiGuide";
 import styles from "./ExternalApiDrawer.module.less";
 
 interface ExternalApiDrawerProps {
@@ -31,8 +33,10 @@ interface ExternalApiDrawerProps {
 function ExternalApiSettings({
   agentId,
   agentName,
+  apiUrl,
   onSavingChange,
 }: Pick<ExternalApiDrawerProps, "agentId" | "agentName"> & {
+  apiUrl: string;
   onSavingChange: (saving: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -43,8 +47,6 @@ function ExternalApiSettings({
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const savingRef = useRef(false);
-  const apiUrl = new URL(getApiUrl("/v1/expert-api"), window.location.href)
-    .href;
 
   useEffect(() => {
     let cancelled = false;
@@ -234,6 +236,8 @@ export default function ExternalApiDrawer({
 }: ExternalApiDrawerProps) {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
+  const apiUrl = new URL(getApiUrl("/v1/expert-api"), window.location.href)
+    .href;
   return (
     <Drawer
       title={t("experts.externalApi.title")}
@@ -249,11 +253,28 @@ export default function ExternalApiDrawer({
     >
       {/* Unmount immediately on close so one-time keys cannot survive reopening. */}
       {open && (
-        <ExternalApiSettings
+        <Tabs
           key={agentId}
-          agentId={agentId}
-          agentName={agentName}
-          onSavingChange={setSaving}
+          defaultActiveKey="settings"
+          items={[
+            {
+              key: "settings",
+              label: t("experts.externalApi.guide.settings"),
+              children: (
+                <ExternalApiSettings
+                  agentId={agentId}
+                  agentName={agentName}
+                  apiUrl={apiUrl}
+                  onSavingChange={setSaving}
+                />
+              ),
+            },
+            {
+              key: "guide",
+              label: t("experts.externalApi.guide.tab"),
+              children: <ExternalApiGuide apiUrl={apiUrl} agentId={agentId} />,
+            },
+          ]}
         />
       )}
     </Drawer>

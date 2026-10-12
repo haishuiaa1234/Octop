@@ -263,4 +263,55 @@ describe("ExternalApiButton", () => {
     await screen.findByRole("switch");
     expect(externalApi.getConfig).toHaveBeenCalledTimes(2);
   });
+
+  it("offers usage instructions even when configuration cannot be loaded", async () => {
+    vi.mocked(externalApi.getConfig).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    render(<ExternalApiButton agent={expert} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "experts.externalApi.title" }),
+    );
+    await screen.findByText("offline");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "experts.externalApi.guide.tab" }),
+    );
+    expect(
+      screen.getByText("experts.externalApi.guide.restartWarning"),
+    ).toBeVisible();
+    expect(externalApi.configure).not.toHaveBeenCalled();
+  });
+
+  it("retains the one-time key across tab changes but does not put it in examples", async () => {
+    vi.stubGlobal("BASE_URL", "https://octop.example.test");
+    vi.mocked(externalApi.configure).mockResolvedValue({
+      ...enabled,
+      api_key: "octop_private-one-time-key",
+    });
+    render(<ExternalApiButton agent={expert} />);
+    await openDrawer();
+    fireEvent.click(screen.getByRole("switch"));
+    await screen.findByDisplayValue("octop_private-one-time-key");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "experts.externalApi.guide.tab" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "experts.externalApi.guide.copyExample",
+      })[0],
+    );
+    await waitFor(() => expect(copyText).toHaveBeenCalledTimes(1));
+    const example = vi.mocked(copyText).mock.calls[0][0];
+    expect(example).toContain("https://octop.example.test/api/v1/expert-api");
+    expect(example).toContain("<api-key>");
+    expect(example).not.toContain("octop_private-one-time-key");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "experts.externalApi.guide.settings" }),
+    );
+    expect(
+      screen.getByDisplayValue("octop_private-one-time-key"),
+    ).toBeVisible();
+    expect(externalApi.getConfig).toHaveBeenCalledTimes(1);
+    expect(externalApi.configure).toHaveBeenCalledTimes(1);
+  });
 });
