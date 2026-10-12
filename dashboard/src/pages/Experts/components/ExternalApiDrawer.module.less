@@ -1,0 +1,94 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+
+.expert {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+
+  span {
+    color: var(--fn-text-secondary);
+    font-size: 12px;
+  }
+}
+
+.toggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+
+  code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+}
+
+.valueRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+
+  input {
+    min-width: 0;
+    font-family: monospace;
+  }
+
+  button {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+  }
+}
+
+.endpoints {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  dt {
+    margin-bottom: 4px;
+  }
+
+  dd {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  strong {
+    flex-shrink: 0;
+    width: 36px;
+    color: var(--fn-text-secondary);
+  }
+
+  code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

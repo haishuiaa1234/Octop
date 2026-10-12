@@ -80,6 +80,7 @@ import AgentBackendFields from "./AgentBackendFields";
 import ExpertComposerDefaultsFields from "./ExpertComposerDefaultsFields";
 import SkillCatalogDrawer from "./SkillCatalogDrawer";
 import SubagentCatalogDrawer from "./SubagentCatalogDrawer";
+import ExternalApiButton from "./ExternalApiButton";
 import styles from "../index.module.less";
 
 interface AgentDetail {
@@ -1363,7 +1364,12 @@ export default function EditAgentDrawer({
   return (
     <Drawer
       open={open}
-      title={t("experts.editExpert")}
+      title={
+        <div className={styles.editDrawerTitle}>
+          <span>{t("experts.editExpert")}</span>
+          {agent && <ExternalApiButton agent={agent} />}
+        </div>
+      }
       width={520}
       onClose={onClose}
       destroyOnHidden

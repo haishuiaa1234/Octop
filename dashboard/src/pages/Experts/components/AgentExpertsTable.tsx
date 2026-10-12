@@ -49,6 +49,7 @@ import { isSharedExpertViewer } from "../../../utils/sharedExpert";
 import type { PublishedExpert } from "../../../api/modules/publishedExperts";
 import PublishTemplateButton from "./PublishTemplateButton";
 import AgentMoreActions from "./AgentMoreActions";
+import ExternalApiButton from "./ExternalApiButton";
 
 const STATE_COLORS: Record<string, string> = {
   running: "success",
@@ -424,7 +425,7 @@ export default function AgentExpertsTable({
     {
       title: t("experts.table.actions", "操作"),
       key: "actions",
-      width: 280,
+      width: 320,
       fixed: isMobile ? undefined : "right",
       render: (_v, row) => {
         const state = localStates[row.agent_id] ?? row.state;
@@ -503,6 +504,10 @@ export default function AgentExpertsTable({
                     buttonClassName={styles.tableActionBtn}
                   />
                 )}
+                <ExternalApiButton
+                  agent={row}
+                  buttonClassName={styles.tableActionBtn}
+                />
                 <AgentMoreActions
                   buttonClassName={styles.tableActionBtn}
                   onSkills={() => setSkillCatalogAgentId(row.agent_id)}

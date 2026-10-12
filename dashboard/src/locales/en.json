@@ -689,6 +689,24 @@
     }
   },
   "experts": {
+    "externalApi": {
+      "title": "API integration",
+      "enabled": "External API access",
+      "noKey": "No key generated",
+      "keyOnce": "This full key is shown only now. Store it securely before closing. It is bound to this expert only.",
+      "copyKey": "Copy API Key",
+      "rotate": "Rotate API Key",
+      "rotateConfirm": "Rotate this expert's API Key?",
+      "rotateWarning": "The previous key will stop working immediately. Update the third-party application's credentials.",
+      "address": "API address",
+      "copyAddress": "Copy API address",
+      "authorization": "Authentication",
+      "createSession": "Create session",
+      "sendMessage": "Submit message",
+      "getTask": "Get task result",
+      "loadFailed": "Failed to load API settings",
+      "saveFailed": "Failed to update API settings"
+    },
     "subtitle": "Spin up a pre-configured agent (with identity / soul / heartbeat baked in) from a scenario template. Each expert ships with its own system prompt — once created, just bind a provider and start it.",
     "loadFailed": "Failed to load experts",
     "loadDetailFailed": "Failed to load expert details",

@@ -689,6 +689,24 @@
     }
   },
   "experts": {
+    "externalApi": {
+      "title": "API 对接",
+      "enabled": "开放 API 对接",
+      "noKey": "尚未生成 Key",
+      "keyOnce": "完整 Key 仅本次展示，请在关闭前妥善保存。此 Key 仅绑定当前专家。",
+      "copyKey": "复制 API Key",
+      "rotate": "轮换 API Key",
+      "rotateConfirm": "确认轮换当前专家的 API Key？",
+      "rotateWarning": "原 Key 将立即失效，请同步更新第三方应用的凭据。",
+      "address": "接口地址",
+      "copyAddress": "复制接口地址",
+      "authorization": "鉴权方式",
+      "createSession": "创建会话",
+      "sendMessage": "提交消息",
+      "getTask": "查询任务结果",
+      "loadFailed": "加载接口配置失败",
+      "saveFailed": "更新接口配置失败"
+    },
     "subtitle": "基于已配置的场景模板,一键创建预置身份/灵魂/心跳的智能体。每个专家自带 system prompt,新建后再绑定 provider 并启动即可。",
     "loadFailed": "加载专家失败",
     "loadDetailFailed": "加载详情失败",

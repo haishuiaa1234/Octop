@@ -40,6 +40,7 @@ import { isSharedExpertViewer } from "../../../utils/sharedExpert";
 import type { PublishedExpert } from "../../../api/modules/publishedExperts";
 import PublishTemplateButton from "./PublishTemplateButton";
 import AgentMoreActions from "./AgentMoreActions";
+import ExternalApiButton from "./ExternalApiButton";
 
 const STATE_META: Record<
   string,
@@ -471,6 +472,7 @@ export const AgentCard = memo(function AgentCard({
                 />
               )}
 
+              <ExternalApiButton agent={agent} />
               <AgentMoreActions
                 buttonClassName={styles.agentCard2EditBtn}
                 onSkills={() => setSkillCatalogOpen(true)}
