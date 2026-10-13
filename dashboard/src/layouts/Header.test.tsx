@@ -10,16 +10,24 @@ vi.mock("../components/PwaInstallPrompt", () => ({
 }));
 
 vi.mock("../components/AppVersionBadge", () => ({
-  default: () => null,
+  default: () => <button aria-label="Update available" />,
 }));
 
 vi.mock("../components/CurrentVersionBadge", () => ({
-  default: () => null,
+  default: () => <span>v1.0.2b4</span>,
 }));
 
 import Header from "./Header";
 
 describe("Header", () => {
+  it("hides the version number while retaining the update action", () => {
+    render(<Header isMobile />);
+    expect(screen.queryByText("v1.0.2b4")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Update available" }),
+    ).toBeInTheDocument();
+  });
+
   it("pads mobile chrome for iOS PWA safe-area inset", () => {
     render(<Header isMobile onToggle={() => undefined} />);
     const header = screen.getByRole("banner");

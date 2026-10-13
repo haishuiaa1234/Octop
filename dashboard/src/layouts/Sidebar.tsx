@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import AvatarDropdown from "../components/AvatarDropdown";
 import AppVersionBadge from "../components/AppVersionBadge";
-import CurrentVersionBadge from "../components/CurrentVersionBadge";
 import { ArrowRightLeft, ChevronDown, X } from "lucide-react";
 import Brand from "../components/Brand";
 import { useLayoutMode } from "../context/LayoutModeContext";
@@ -501,12 +500,7 @@ export default function Sidebar({
   const brandInner = (
     <>
       <Brand variant={isRailCollapsed ? "compact" : "navigation"} />
-      {!isRailCollapsed && !isMobile && (
-        <>
-          <CurrentVersionBadge isMobile={isMobile} />
-          <AppVersionBadge isMobile={isMobile} />
-        </>
-      )}
+      {!isRailCollapsed && !isMobile && <AppVersionBadge isMobile={isMobile} />}
     </>
   );
 

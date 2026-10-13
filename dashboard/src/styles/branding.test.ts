@@ -13,6 +13,18 @@ const manifest = JSON.parse(
 );
 
 describe("Geneseeq workbench identity", () => {
+  it.each(["Header", "Sidebar"])(
+    "keeps %s branding free of version numbers without removing update alerts",
+    (layout) => {
+      const source = readFileSync(
+        resolve(dashboard, "src/layouts", `${layout}.tsx`),
+        "utf8",
+      );
+      expect(source).not.toContain("CurrentVersionBadge");
+      expect(source).toContain("<AppVersionBadge");
+    },
+  );
+
   it("uses the approved name before React loads", () => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     expect(doc.title).toBe(name);
