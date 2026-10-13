@@ -1,0 +1,64 @@
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  color: var(--fn-text-primary);
+}
+
+.logo {
+  display: block;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.name {
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.navigation {
+  align-items: flex-start;
+  width: 108px;
+
+  .logo {
+    width: 72px;
+    height: 30px;
+    padding: 2px;
+  }
+
+  .name {
+    font-size: 14px;
+  }
+}
+
+.auth {
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+
+  .logo {
+    width: 160px;
+    height: 78px;
+    padding: 8px;
+  }
+
+  .name {
+    font-size: 22px;
+    line-height: 30px;
+  }
+}
+
+.compact {
+  width: 32px;
+  height: 32px;
+
+  .logo {
+    width: 32px;
+    height: 32px;
+  }
+}

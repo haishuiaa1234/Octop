@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Octop",
-  "short_name": "Octop",
-  "description": "Smarter self-hosted AI assistant — multi-user, multi-agent",
+  "name": "世和智能工作台",
+  "short_name": "世和智能工作台",
+  "description": "世和基因智能工作台",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -13,25 +13,25 @@
   "lang": "zh-CN",
   "icons": [
     {
-      "src": "/pwa-192.png",
+      "src": "/geneseeq-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-512.png",
+      "src": "/geneseeq-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-512.png",
+      "src": "/geneseeq-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/geneseeq-apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"

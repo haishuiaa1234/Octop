@@ -50,11 +50,10 @@ describe("index.html boot theme", () => {
     );
   });
 
-  it("uses the white vertical mark in dark mode", () => {
-    expect(INDEX_HTML).toContain('src="/logo_vertical_white.svg"');
-    expect(INDEX_HTML).toContain(
-      'html[data-theme="dark"] .octop-boot-logo--dark',
-    );
+  it("uses the official corporate icon on white backing in both themes", () => {
+    expect(INDEX_HTML).toContain('src="/geneseeq-icon-192.png"');
+    expect(INDEX_HTML).not.toContain('src="/logo_vertical_white.svg"');
+    expect(INDEX_HTML).toMatch(/\.octop-boot-logo\s*\{[^}]*background:\s*#fff/);
   });
 
   it("keeps a stored light preference over OS dark", () => {
