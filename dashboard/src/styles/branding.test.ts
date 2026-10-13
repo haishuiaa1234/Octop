@@ -6,7 +6,7 @@ import zh from "../locales/zh.json";
 import en from "../locales/en.json";
 
 const dashboard = resolve(__dirname, "../..");
-const name = "世和智能工作台";
+const name = "智能工作台";
 const html = readFileSync(resolve(dashboard, "index.html"), "utf8");
 const manifest = JSON.parse(
   readFileSync(resolve(dashboard, "public/manifest.json"), "utf8"),
@@ -40,8 +40,12 @@ describe("Geneseeq workbench identity", () => {
   });
 
   it("keeps both translated page titles consistent", () => {
-    expect(zh.app.pageTitle).toBe(name);
-    expect(en.app.pageTitle).toBe(name);
+    for (const locale of [zh, en]) {
+      expect(locale.app.name).toBe(name);
+      expect(locale.app.pageTitle).toBe(name);
+      expect(JSON.stringify(locale)).not.toContain("世和智能工作台");
+      expect(JSON.stringify(locale)).not.toContain("分析部智能工作台");
+    }
   });
 
   it("uses the product name in setup and login copy without renaming CLI paths", () => {
@@ -58,6 +62,7 @@ describe("Geneseeq workbench identity", () => {
   it("renames the installed app without changing its identity or start URL", () => {
     expect(manifest.name).toBe(name);
     expect(manifest.short_name).toBe(name);
+    expect(manifest.description).toBe(name);
     expect(manifest.id).toBe("/");
     expect(manifest.start_url).toBe("/");
     expect(manifest.scope).toBe("/");
@@ -101,6 +106,9 @@ describe("Geneseeq workbench identity", () => {
       "utf8",
     );
     expect(offline).toContain(name);
+    expect(new DOMParser().parseFromString(offline, "text/html").title).toBe(
+      `${name} - 离线中`,
+    );
     expect(offline).toContain('src="/geneseeq-logo.png"');
     expect(offline).not.toContain("Octop");
   });

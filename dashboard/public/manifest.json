@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "世和智能工作台",
-  "short_name": "世和智能工作台",
-  "description": "世和基因智能工作台",
+  "name": "智能工作台",
+  "short_name": "智能工作台",
+  "description": "智能工作台",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
