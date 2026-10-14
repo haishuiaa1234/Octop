@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CopyOutlined, KeyOutlined } from "@ant-design/icons";
 import {
   Alert,
   App,
@@ -34,6 +35,8 @@ const defaults: WebsiteInput = {
   user_ids: [],
   sort_order: 0,
   open_mode: "embed",
+  auth_mode: "none",
+  sso_callback_url: null,
 };
 
 export default function WebsiteManagement() {
@@ -46,8 +49,15 @@ export default function WebsiteManagement() {
   const [editing, setEditing] = useState<ManagedWebsite>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [secretTarget, setSecretTarget] = useState<ManagedWebsite>();
+  const [secretBusy, setSecretBusy] = useState(false);
+  const [credentials, setCredentials] = useState<{
+    website_id: string;
+    client_secret: string;
+  }>();
   const [form] = Form.useForm<WebsiteInput>();
   const visibility = Form.useWatch("visibility", form);
+  const authMode = Form.useWatch("auth_mode", form);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -71,7 +81,7 @@ export default function WebsiteManagement() {
   const edit = (site?: ManagedWebsite) => {
     setEditing(site);
     form.resetFields();
-    form.setFieldsValue(site ?? defaults);
+    form.setFieldsValue(site ? { ...defaults, ...site } : defaults);
     setOpen(true);
   };
   const changed = async () => {
@@ -85,6 +95,8 @@ export default function WebsiteManagement() {
         {
           ...input,
           user_ids: input.visibility === "all" ? [] : input.user_ids,
+          sso_callback_url:
+            input.auth_mode === "octop" ? input.sso_callback_url : null,
         },
         editing?.website_id,
       );
@@ -103,6 +115,28 @@ export default function WebsiteManagement() {
       await changed();
     } catch {
       message.error(t("websites.saveFailed"));
+    }
+  };
+  const generateSecret = async () => {
+    if (!secretTarget) return;
+    setSecretBusy(true);
+    try {
+      const result = await websiteApi.rotateSsoSecret(secretTarget.website_id);
+      setCredentials({ website_id: secretTarget.website_id, ...result });
+      setSecretTarget(undefined);
+    } catch {
+      message.error(t("websites.ssoSecretFailed"));
+    } finally {
+      setSecretBusy(false);
+    }
+  };
+  const copySecret = async () => {
+    if (!credentials) return;
+    try {
+      await navigator.clipboard.writeText(credentials.client_secret);
+      message.success(t("websites.copied"));
+    } catch {
+      message.error(t("websites.copyFailed"));
     }
   };
 
@@ -166,12 +200,31 @@ export default function WebsiteManagement() {
               ),
           },
           {
+            title: t("websites.authentication"),
+            render: (_, row) =>
+              t(
+                row.auth_mode === "octop"
+                  ? "websites.authOctop"
+                  : "websites.authNone",
+              ),
+          },
+          {
             title: t("websites.actions"),
             render: (_, row) => (
               <Space>
                 <Button size="small" onClick={() => edit(row)}>
                   {t("websites.edit")}
                 </Button>
+                {row.auth_mode === "octop" && (
+                  <Button
+                    size="small"
+                    icon={<KeyOutlined />}
+                    aria-label={t("websites.ssoSecret")}
+                    onClick={() => setSecretTarget(row)}
+                  >
+                    {t("websites.ssoSecret")}
+                  </Button>
+                )}
                 <Popconfirm
                   title={t("websites.deleteConfirm", { name: row.name })}
                   onConfirm={() => remove(row)}
@@ -245,6 +298,54 @@ export default function WebsiteManagement() {
               ]}
             />
           </Form.Item>
+          <Form.Item name="auth_mode" label={t("websites.authentication")}>
+            <Select
+              options={[
+                { value: "none", label: t("websites.authNone") },
+                { value: "octop", label: t("websites.authOctop") },
+              ]}
+            />
+          </Form.Item>
+          {authMode === "octop" && (
+            <Form.Item
+              name="sso_callback_url"
+              label={t("websites.ssoCallback")}
+              rules={[
+                {
+                  validator: async (_, value: string) => {
+                    const app = externalWebsiteTarget(
+                      form.getFieldValue("url"),
+                      window.location.origin,
+                    );
+                    const callback = externalWebsiteTarget(
+                      value,
+                      window.location.origin,
+                    );
+                    if (
+                      !app ||
+                      !callback ||
+                      app.origin !== callback.origin ||
+                      (app.protocol !== "https:" &&
+                        !["localhost", "127.0.0.1", "[::1]"].includes(
+                          app.hostname,
+                        )) ||
+                      callback.hash ||
+                      callback.searchParams.has("code") ||
+                      callback.searchParams.has("state")
+                    ) {
+                      throw new Error(t("websites.ssoCallbackInvalid"));
+                    }
+                  },
+                },
+              ]}
+              dependencies={["url"]}
+            >
+              <Input
+                maxLength={2048}
+                placeholder="https://app.example.com/auth/octop/callback"
+              />
+            </Form.Item>
+          )}
           <Form.Item name="visibility" label={t("websites.visibility")}>
             <Select
               options={[
@@ -287,6 +388,59 @@ export default function WebsiteManagement() {
             valuePropName="checked"
           >
             <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title={t("websites.ssoSecret")}
+        open={!!secretTarget}
+        onCancel={() => {
+          if (!secretBusy) setSecretTarget(undefined);
+        }}
+        onOk={() => void generateSecret()}
+        confirmLoading={secretBusy}
+        okText={t("websites.generate")}
+        cancelText={t("websites.cancel")}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message={t("websites.ssoSecretConfirm")}
+        />
+      </Modal>
+      <Modal
+        title={t("websites.ssoSecret")}
+        open={!!credentials}
+        destroyOnClose
+        onCancel={() => setCredentials(undefined)}
+        footer={
+          <Button onClick={() => setCredentials(undefined)}>
+            {t("websites.close")}
+          </Button>
+        }
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message={t("websites.ssoSecretNotice")}
+        />
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label={t("websites.clientId")}>
+            <Input value={credentials?.website_id ?? ""} readOnly />
+          </Form.Item>
+          <Form.Item label={t("websites.clientSecret")}>
+            <Space.Compact style={{ width: "100%" }}>
+              <Input.Password
+                aria-label={t("websites.clientSecret")}
+                value={credentials?.client_secret ?? ""}
+                readOnly
+              />
+              <Button
+                icon={<CopyOutlined />}
+                title={t("websites.copy")}
+                onClick={() => void copySecret()}
+              />
+            </Space.Compact>
           </Form.Item>
         </Form>
       </Modal>

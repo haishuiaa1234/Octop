@@ -72,6 +72,7 @@ _JWT_EXEMPT_PREFIXES = (
     "/api/v1/expert-api/",
 )
 _JWT_EXEMPT_EXACT = (
+    "/api/app-sso/exchange",
     "/api/health",
     "/api/auth/login",
     "/api/auth/captcha",

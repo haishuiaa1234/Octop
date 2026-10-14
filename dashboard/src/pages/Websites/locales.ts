@@ -26,6 +26,26 @@ export const websiteLocales = {
     retry: "重试",
     saved: "网站已保存",
     saveFailed: "保存失败，请检查网址和授权用户后重试。",
+    authentication: "身份接入",
+    authNone: "应用自行登录",
+    authOctop: "Octop 免登录",
+    ssoCallback: "免登录回调地址",
+    ssoCallbackInvalid:
+      "回调须与网站地址同源，使用 HTTPS（本机开发可用 HTTP），且不能包含片段或 code/state 参数。",
+    ssoSecret: "应用密钥",
+    generate: "生成密钥",
+    close: "关闭",
+    clientId: "应用 ID",
+    clientSecret: "应用密钥",
+    copy: "复制密钥",
+    copied: "已复制",
+    copyFailed: "复制失败，请手动选取密钥。",
+    ssoSecretConfirm:
+      "生成后旧密钥和未兑换票据立即失效，已接入的应用需要更新密钥。",
+    ssoSecretNotice:
+      "密钥仅在此处展示一次。请仅存放于应用后端，不要写入前端或公开配置。",
+    ssoSecretFailed: "应用密钥生成失败",
+    ssoFailed: "免登录未完成，请重试或在新标签页打开。",
     loadFailed: "网站配置加载失败",
     unavailable: "网站不存在、已停用或你没有访问权限。",
     deleteConfirm: "确定删除“{{name}}”的菜单入口吗？",
@@ -34,7 +54,7 @@ export const websiteLocales = {
       "请输入完整的 HTTP 或 HTTPS 网址，不能包含账号、密码或空白字符，且必须与 Octop 使用不同源。",
     usersRequired: "请至少选择一位用户",
     accessHint:
-      "这里控制 Octop 内的网站入口。第三方网站的登录和操作权限由原系统管理；普通用户只能访问已启用且被授权的网站。",
+      "这里控制 Octop 内的网站入口。第三方应用的操作权限仍由应用管理；普通用户只能访问已启用且被授权的网站。",
     embedHint:
       "页面空白或登录异常？请使用右上角“新标签页打开”。第三方网站可能限制嵌入或跨站 Cookie。",
     mixedContent:
@@ -67,6 +87,26 @@ export const websiteLocales = {
     retry: "Retry",
     saved: "Website saved",
     saveFailed: "Save failed. Check the URL and allowed users, then retry.",
+    authentication: "Identity integration",
+    authNone: "Application sign-in",
+    authOctop: "Octop single sign-on",
+    ssoCallback: "SSO callback URL",
+    ssoCallbackInvalid:
+      "Use a callback on the website origin over HTTPS (HTTP for local development only), without a fragment or code/state parameters.",
+    ssoSecret: "Application secret",
+    generate: "Generate secret",
+    close: "Close",
+    clientId: "Application ID",
+    clientSecret: "Client secret",
+    copy: "Copy secret",
+    copied: "Copied",
+    copyFailed: "Could not copy. Select the secret manually.",
+    ssoSecretConfirm:
+      "Generating a secret immediately invalidates the old secret and outstanding codes. Connected applications must update their secret.",
+    ssoSecretNotice:
+      "This secret is shown only once. Keep it on the application backend, never in frontend code or public settings.",
+    ssoSecretFailed: "Could not generate the application secret",
+    ssoFailed: "Single sign-on did not complete. Retry or open in a new tab.",
     loadFailed: "Could not load website settings",
     unavailable: "Website not found, disabled, or unavailable to your account.",
     deleteConfirm: "Delete the menu entry for “{{name}}”?",
@@ -75,7 +115,7 @@ export const websiteLocales = {
       "Enter a complete HTTP or HTTPS URL without credentials or whitespace, on a different origin from Octop.",
     usersRequired: "Select at least one user",
     accessHint:
-      "These settings control website entries in Octop. The external system manages its own login and permissions. Users can only access enabled websites shared with them.",
+      "These settings control website entries in Octop. Application permissions remain application-owned. Users can only access enabled websites shared with them.",
     embedHint:
       "Blank page or login trouble? Use “Open in new tab”. External websites may restrict embedding or cross-site cookies.",
     mixedContent:

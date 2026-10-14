@@ -1,7 +1,8 @@
 {
   "websites": {
     "invalid_url": "请输入不含账号密码的完整 HTTP 或 HTTPS 网址。",
-    "users_required": "请至少选择一位可访问用户。"
+    "users_required": "请至少选择一位可访问用户。",
+    "invalid_sso_config": "免登录需使用 HTTPS（本机开发除外），回调必须与应用入口同源且不含账号密码或片段。"
   },
   "slash": {
     "error": {
@@ -351,6 +352,8 @@
     "FORBIDDEN": "没有权限。",
     "NOT_FOUND": "未找到。",
     "USER_DISABLED": "账号已禁用。",
+    "WEBSITE_SSO_NOT_CONFIGURED": "请先启用 Octop 免登录并生成应用密钥。",
+    "WEBSITE_SSO_INVALID_ORIGIN": "免登录应用必须与 Octop 使用不同的源。",
     "LOGIN_LOCKED": "登录失败次数过多，请 {minutes} 分钟后再试。",
     "USERNAME_TAKEN": "用户名已被占用。",
     "EMAIL_TAKEN": "邮箱已被占用。",

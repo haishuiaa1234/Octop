@@ -87,6 +87,8 @@
     "tokenCountPreview": "About {{label}} tokens ({{exact}})"
   },
   "apiErrors": {
+    "WEBSITE_SSO_NOT_CONFIGURED": "Enable Octop SSO and generate an application secret before signing in.",
+    "WEBSITE_SSO_INVALID_ORIGIN": "SSO applications must use a different origin from Octop.",
     "AUTH_FAILED": "Authentication failed.",
     "TOKEN_EXPIRED": "Session expired. Please sign in again.",
     "SETUP_REQUIRED": "Initial setup is required.",

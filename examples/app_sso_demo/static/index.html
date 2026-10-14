@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>企业报表 · 独立应用</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <script defer src="/static/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <div><span class="product">企业报表</span><span class="environment">DEMO</span></div>
+        <button id="logout" class="quiet" type="button" hidden>退出应用</button>
+      </div>
+    </header>
+    <main>
+      <section class="identity-band" aria-live="polite">
+        <div>
+          <span id="status" class="status">正在连接</span>
+          <h1 id="display-name">企业报表</h1>
+          <p id="account" class="muted"></p>
+        </div>
+        <button id="login" type="button" hidden>使用 Octop 登录</button>
+      </section>
+      <p id="error" class="error" role="alert" hidden></p>
+      <section id="workspace" hidden>
+        <div class="section-heading"><h2>报表</h2><span id="role" class="role">只读成员</span></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>编号</th><th>报表名称</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="reports"></tbody>
+          </table>
+        </div>
+        <section class="account-details">
+          <h2>应用账号</h2>
+          <dl><dt>关联标识</dt><dd id="subject"></dd><dt>应用权限</dt><dd id="permissions"></dd></dl>
+        </section>
+      </section>
+    </main>
+    <footer>企业报表 / 独立应用</footer>
+  </body>
+</html>

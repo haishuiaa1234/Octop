@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ExportOutlined } from "@ant-design/icons";
 import { Alert, Button, Space, Spin, Typography } from "antd";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -10,6 +11,7 @@ import {
 } from "../../api/modules/websites";
 import styles from "./websites.module.less";
 import { externalWebsiteTarget } from "./target";
+import { useWebsiteSso } from "./useWebsiteSso";
 
 export default function WebsiteView() {
   const { websiteId = "" } = useParams();
@@ -20,6 +22,12 @@ export default function WebsiteView() {
     site?: WebsiteLink;
   }>();
   const key = `${userId}:${websiteId}`;
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const sso = useWebsiteSso(
+    state?.key === key ? state.site : undefined,
+    frameRef,
+    key,
+  );
   useEffect(() => {
     let alive = true;
     let sequence = 0;
@@ -67,11 +75,28 @@ export default function WebsiteView() {
           {site.name}
         </Typography.Text>
         <Space>
-          <Button href={site.url} target="_blank" rel="noopener noreferrer">
-            {t("websites.openNew")}
-          </Button>
+          {site.auth_mode === "octop" ? (
+            <Button
+              icon={<ExportOutlined />}
+              aria-label={t("websites.openNew")}
+              onClick={sso.openNew}
+            >
+              {t("websites.openNew")}
+            </Button>
+          ) : (
+            <Button href={site.url} target="_blank" rel="noopener noreferrer">
+              {t("websites.openNew")}
+            </Button>
+          )}
         </Space>
       </div>
+      {sso.failed && (
+        <Alert
+          type="error"
+          message={t("websites.ssoFailed")}
+          action={<Button onClick={sso.retry}>{t("websites.retry")}</Button>}
+        />
+      )}
       {site.open_mode === "new_tab" || mixedContent ? (
         <div className={styles.center}>
           <Alert
@@ -85,6 +110,8 @@ export default function WebsiteView() {
         <>
           <div className={styles.hint}>{t("websites.embedHint")}</div>
           <iframe
+            ref={frameRef}
+            onLoad={sso.hello}
             key={site.url}
             src={site.url}
             title={site.name}
