@@ -4891,6 +4891,13 @@
   },
   "login": {
     "title": "Sign in",
+    "accountLogin": "Account login",
+    "qrLogin": "QR code login",
+    "wecomQr": "WeCom QR code login",
+    "qrLoading": "Loading QR code",
+    "qrLoadFailed": "Could not load the QR code. Refresh to retry.",
+    "refreshQr": "Refresh QR code",
+    "loadingProviders": "Loading login methods",
     "subtitle": "An intelligent partner that understands you, helps you, and grows with you",
     "username": "Username or email",
     "password": "Password",

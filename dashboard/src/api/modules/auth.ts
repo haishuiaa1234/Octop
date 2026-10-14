@@ -212,10 +212,11 @@ export const authApi = {
     }),
 
   /** Start an OAuth/OIDC authorization-code login flow by provider kind. */
-  startOauth: (kind: string, redirect_after?: string) =>
+  startOauth: (kind: string, redirect_after?: string, signal?: AbortSignal) =>
     request<{ authorization_url: string }>("/auth/oauth/start", {
       method: "POST",
       body: JSON.stringify({ kind, redirect_after }),
+      signal,
     }),
 
   /** Start an OAuth flow that binds the identity to the current user. */

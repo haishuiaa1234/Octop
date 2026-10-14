@@ -5030,6 +5030,13 @@
   },
   "login": {
     "title": "登录",
+    "accountLogin": "账号登录",
+    "qrLogin": "扫码登录",
+    "wecomQr": "企业微信扫码登录",
+    "qrLoading": "二维码加载中",
+    "qrLoadFailed": "二维码加载失败，请刷新重试。",
+    "refreshQr": "刷新二维码",
+    "loadingProviders": "正在加载登录方式",
     "subtitle": "懂你、帮你、陪你成长的智能伙伴",
     "username": "用户名或邮箱",
     "password": "密码",

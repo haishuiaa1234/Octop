@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Input, Button, Checkbox } from "antd";
+import { Input, Button, Checkbox, Spin, Tabs } from "antd";
 import { message } from "@/utils/antdMessage";
 
 import { KeyRound, Lock, User } from "lucide-react";
@@ -28,6 +28,7 @@ import googleIcon from "../../assets/providers/google.svg";
 import CaptchaField, { type CaptchaFieldHandle } from "./CaptchaField";
 import ForgotPasswordModal from "./ForgotPasswordModal";
 import { type PublicCaptchaConfig } from "./captchaAdapters";
+import WecomQrLogin from "./WecomQrLogin";
 
 function providerLabel(
   provider: OauthProviderStatus,
@@ -77,6 +78,8 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<OauthProviderStatus[]>([]);
+  const [providerStatusReady, setProviderStatusReady] = useState(false);
+  const [loginMode, setLoginMode] = useState("qr");
   const [ssoLoadingKind, setSsoLoadingKind] = useState<string | null>(null);
   const [captchaReady, setCaptchaReady] = useState(false);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
@@ -85,6 +88,17 @@ export default function LoginPage() {
     provider: "slider",
   });
   const captchaRef = useRef<CaptchaFieldHandle>(null);
+  const hasWecom = providers.some((provider) => provider.kind === "wecom");
+  const showQr = hasWecom && loginMode === "qr";
+  const showAccountForm =
+    !showQr && (providerStatusReady || loginMode === "account");
+  const otherProviders = providers.filter(
+    (provider) => provider.kind !== "wecom",
+  );
+
+  useEffect(() => {
+    setRememberLoginPreference(remember);
+  }, [remember]);
 
   useEffect(() => {
     void applyGuestLocale();
@@ -107,9 +121,12 @@ export default function LoginPage() {
           .then((next) => {
             if (!cancelled) {
               setProviders(next.providers.filter((item) => item.enabled));
+              setProviderStatusReady(true);
             }
           })
-          .catch(() => {});
+          .catch(() => {
+            if (!cancelled) setProviderStatusReady(true);
+          });
         authApi
           .getCaptcha()
           .then((next) => {
@@ -123,6 +140,7 @@ export default function LoginPage() {
         // Backend unreachable — let the user attempt login and show a real
         // error from the request itself; redirecting blindly to /setup
         // would mask the actual problem.
+        if (!cancelled) setProviderStatusReady(true);
       });
     return () => {
       cancelled = true;
@@ -244,7 +262,7 @@ export default function LoginPage() {
       <div
         style={{
           width: "100%",
-          maxWidth: 360,
+          maxWidth: hasWecom ? 396 : 360,
           padding: "48px 32px 40px",
           background: "var(--fn-bg-elevated)",
           borderRadius: 16,
@@ -254,7 +272,6 @@ export default function LoginPage() {
           flexDirection: "column",
           alignItems: "center",
           gap: 20,
-          margin: "0 16px",
         }}
       >
         <Brand variant="auth" />
@@ -271,51 +288,91 @@ export default function LoginPage() {
           {t("login.title")}
         </h2>
 
-        <Input
-          prefix={
-            <User size={16} style={{ color: "var(--fn-text-quaternary)" }} />
-          }
-          placeholder={t("login.username")}
-          size="large"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoFocus
-          style={{ borderRadius: 10 }}
-        />
+        {hasWecom && (
+          <Tabs
+            activeKey={loginMode}
+            onChange={(key) => {
+              setLoginMode(key);
+              resetCaptcha();
+            }}
+            centered
+            items={[
+              { key: "account", label: t("login.accountLogin") },
+              { key: "qr", label: t("login.qrLogin") },
+            ]}
+            style={{ width: "100%", marginBottom: -20 }}
+          />
+        )}
 
-        <Input.Password
-          prefix={
-            <Lock size={16} style={{ color: "var(--fn-text-quaternary)" }} />
-          }
-          placeholder={t("login.password")}
-          size="large"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onPressEnter={handleLogin}
-          style={{ borderRadius: 10 }}
-        />
+        {showQr ? (
+          <WecomQrLogin />
+        ) : !showAccountForm ? (
+          <div
+            style={{
+              width: "100%",
+              height: 120,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Spin aria-label={t("login.loadingProviders")} />
+          </div>
+        ) : (
+          <>
+            <Input
+              prefix={
+                <User
+                  size={16}
+                  style={{ color: "var(--fn-text-quaternary)" }}
+                />
+              }
+              placeholder={t("login.username")}
+              size="large"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+              style={{ borderRadius: 10 }}
+            />
 
-        <CaptchaField
-          ref={captchaRef}
-          config={captcha}
-          resetKey={captchaResetKey}
-          slideHint={t("login.slideHint")}
-          slideVerifiedLabel={t("login.slideVerified")}
-          unsupportedLabel={t("login.unsupportedCaptcha")}
-          onReadyChange={setCaptchaReady}
-        />
+            <Input.Password
+              prefix={
+                <Lock
+                  size={16}
+                  style={{ color: "var(--fn-text-quaternary)" }}
+                />
+              }
+              placeholder={t("login.password")}
+              size="large"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onPressEnter={handleLogin}
+              style={{ borderRadius: 10 }}
+            />
 
-        <Button
-          type="primary"
-          size="large"
-          block
-          loading={loading}
-          onClick={handleLogin}
-          disabled={!username || !password || !captchaReady}
-          style={{ borderRadius: 10, height: 44, fontWeight: 500 }}
-        >
-          {t("login.submit")}
-        </Button>
+            <CaptchaField
+              ref={captchaRef}
+              config={captcha}
+              resetKey={captchaResetKey}
+              slideHint={t("login.slideHint")}
+              slideVerifiedLabel={t("login.slideVerified")}
+              unsupportedLabel={t("login.unsupportedCaptcha")}
+              onReadyChange={setCaptchaReady}
+            />
+
+            <Button
+              type="primary"
+              size="large"
+              block
+              loading={loading}
+              onClick={handleLogin}
+              disabled={!username || !password || !captchaReady}
+              style={{ borderRadius: 10, height: 44, fontWeight: 500 }}
+            >
+              {t("login.submit")}
+            </Button>
+          </>
+        )}
 
         <div
           style={{
@@ -345,24 +402,26 @@ export default function LoginPage() {
             >
               {t("login.remember")}
             </Checkbox>
-            <button
-              type="button"
-              data-testid="login-forgot-password-toggle"
-              onClick={() => setShowForgotHelp(true)}
-              style={{
-                margin: 0,
-                padding: 0,
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                lineHeight: 1.5,
-                color: "var(--fn-text-tertiary)",
-                flexShrink: 0,
-              }}
-            >
-              {t("login.forgotPassword", "Forgot password?")}
-            </button>
+            {!showQr && (
+              <button
+                type="button"
+                data-testid="login-forgot-password-toggle"
+                onClick={() => setShowForgotHelp(true)}
+                style={{
+                  margin: 0,
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: "var(--fn-text-tertiary)",
+                  flexShrink: 0,
+                }}
+              >
+                {t("login.forgotPassword", "Forgot password?")}
+              </button>
+            )}
           </div>
           <ForgotPasswordModal
             open={showForgotHelp}
@@ -370,7 +429,7 @@ export default function LoginPage() {
           />
         </div>
 
-        {providers.length > 0 && (
+        {!showQr && otherProviders.length > 0 && (
           <>
             <div
               style={{
@@ -398,7 +457,7 @@ export default function LoginPage() {
                 }}
               />
             </div>
-            {providers.map((provider) => (
+            {otherProviders.map((provider) => (
               <Button
                 key={provider.kind}
                 size="large"
