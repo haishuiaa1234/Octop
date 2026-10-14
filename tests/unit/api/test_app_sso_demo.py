@@ -99,7 +99,7 @@ async def test_prepare_reuses_pending_and_does_not_expose_confidential_values(
     assert first["pending"] == second["pending"]
     assert len(first["pending"]["state"]) >= 32
     assert len(first["pending"]["code_challenge"]) == 43
-    cookie = client.cookies.get("octop_demo_session")
+    cookie = client.cookies.get("octop_demo_http_session")
     cookie_data = json.loads(base64.b64decode(cookie.split(".")[0]))
     exposed = json.dumps({"bootstrap": first, "cookie": cookie_data})
     assert "client_secret" not in exposed
@@ -263,7 +263,7 @@ async def test_local_logout_revokes_session_and_does_not_automatically_restart_l
 ) -> None:
     client, _ = browser
     bootstrap = await _sign_in(client)
-    logged_in_cookie = client.cookies.get("octop_demo_session")
+    logged_in_cookie = client.cookies.get("octop_demo_http_session")
 
     response = await client.post(
         "/auth/logout",
@@ -279,7 +279,7 @@ async def test_local_logout_revokes_session_and_does_not_automatically_restart_l
     )
     assert response.status_code == 200
     assert response.json()["pending"] is not None
-    client.cookies.set("octop_demo_session", logged_in_cookie, domain="127.0.0.1", path="/")
+    client.cookies.set("octop_demo_http_session", logged_in_cookie, domain="127.0.0.1", path="/")
     assert (await client.get("/api/me")).status_code == 401
 
 
@@ -334,4 +334,50 @@ def test_factory_rejects_unsafe_configuration(
     monkeypatch.setenv(key, value)
 
     with pytest.raises(ValueError):
+        demo.create_app()
+
+
+async def test_explicit_intranet_http_origins_support_cookie_session(
+    demo_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OCTOP_ORIGIN", "http://172.16.18.6:8088")
+    monkeypatch.setenv("DEMO_BASE_URL", "http://172.16.18.6:8089")
+    monkeypatch.setenv("DEMO_SSO_HTTP_ORIGINS", "http://172.16.18.6:8088,http://172.16.18.6:8089")
+    app = demo.create_app(
+        exchange_transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={"user": {"id": 12, "username": "user", "display_name": None, "locale": "zh"}},
+            )
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://172.16.18.6:8089"
+    ) as client:
+        response = await client.get("/api/sso/bootstrap")
+        cookie = response.headers["set-cookie"].lower()
+        assert cookie.startswith("octop_demo_http_session=")
+        assert "httponly" in cookie and "samesite=lax" in cookie
+        assert "; secure" not in cookie
+        assert (
+            "frame-ancestors 'self' http://172.16.18.6:8088"
+            in response.headers["content-security-policy"]
+        )
+        await _sign_in(client)
+        assert (await client.get("/api/me")).status_code == 200
+
+
+@pytest.mark.parametrize("origin", ["http://172.16.18.6:8090", "http://172.16.18.7:8089"])
+def test_demo_http_allowlist_is_exact(demo_env: None, monkeypatch, origin):
+    monkeypatch.setenv("DEMO_BASE_URL", origin)
+    monkeypatch.setenv("DEMO_SSO_HTTP_ORIGINS", "http://172.16.18.6:8089")
+    with pytest.raises(ValueError):
+        demo.create_app()
+
+
+def test_demo_http_iframe_requires_same_host(demo_env: None, monkeypatch):
+    monkeypatch.setenv("OCTOP_ORIGIN", "http://172.16.18.6:8088")
+    monkeypatch.setenv("DEMO_BASE_URL", "http://172.16.18.7:8089")
+    monkeypatch.setenv("DEMO_SSO_HTTP_ORIGINS", "http://172.16.18.6:8088,http://172.16.18.7:8089")
+    with pytest.raises(ValueError, match="same host"):
         demo.create_app()

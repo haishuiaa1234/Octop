@@ -18,6 +18,43 @@ from octop.infra.db.repos.websites import WebsiteRepo
 websites = _websites
 
 
+async def test_explicit_http_origin_can_exchange_and_removing_it_revokes_codes(websites):
+    client, _, _, services = websites
+    services.config.website_sso_http_origins.append("http://172.16.18.6:8089")
+    site, secret = await provision(
+        websites,
+        url="http://172.16.18.6:8089/",
+        sso_callback_url="http://172.16.18.6:8089/auth/octop/callback",
+    )
+    body = {**await issue(websites, site), "client_secret": secret}
+    assert (await client.post("/api/app-sso/exchange", json=body)).status_code == 200
+    body = {**await issue(websites, site), "client_secret": secret}
+    services.config.website_sso_http_origins.clear()
+    assert (await client.post("/api/app-sso/exchange", json=body)).status_code == 401
+    state, _, challenge = handshake()
+    assert (
+        await client.post(
+            f"/api/websites/{site['website_id']}/sso/code",
+            json={"state": state, "code_challenge": challenge},
+        )
+    ).status_code == 404
+    assert (await client.get("/api/websites")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["http://172.16.18.6:8090", "http://172.16.18.7:8089", "http://172.16.18.6.evil:8089"],
+)
+async def test_http_allowlist_does_not_allow_other_ports_or_hosts(websites, origin):
+    client, _, _, services = websites
+    services.config.website_sso_http_origins.append("http://172.16.18.6:8089")
+    response = await client.post(
+        "/api/admin/websites",
+        json=sso_payload(url=origin, sso_callback_url=origin + "/callback"),
+    )
+    assert response.status_code == 422
+
+
 def sso_payload(**overrides):
     return {
         "name": "External app",
@@ -216,7 +253,8 @@ async def test_invalid_sso_configuration_is_rejected(websites, override):
     ).status_code == 422
 
 
-async def test_loopback_http_and_original_website_defaults(websites):
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "[::1]"])
+async def test_loopback_http_and_original_website_defaults(websites, host):
     client, _, _, _ = websites
     response = await client.post(
         "/api/admin/websites", json={"name": "Original", "url": "http://intranet.example.test/"}
@@ -226,8 +264,8 @@ async def test_loopback_http_and_original_website_defaults(websites):
     assert response.json()["sso_callback_url"] is None
     await provision(
         websites,
-        url="http://127.0.0.1:5186/",
-        sso_callback_url="http://127.0.0.1:5186/sso/callback",
+        url=f"http://{host}:5186/",
+        sso_callback_url=f"http://{host}:5186/sso/callback",
     )
 
 

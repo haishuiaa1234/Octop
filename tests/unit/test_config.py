@@ -18,6 +18,7 @@ def test_defaults_when_missing(tmp_path: Path):
     assert cfg.access_token_ttl_seconds == 86400
     assert cfg.enable_dashboard is True
     assert cfg.enable_api_docs is False
+    assert cfg.website_sso_http_origins == []
     assert cfg.require_setup_password is True
     assert cfg.database.driver == "sqlite"
     assert cfg.database.sqlite_path == "octop.db"
@@ -39,6 +40,45 @@ def test_defaults_when_missing(tmp_path: Path):
     assert "password" not in written.get("database", {})
     assert written.get("backup", {}).get("auto_enabled") is False
     assert written["max_upload_mb"] == 100
+
+
+def test_website_sso_http_origins_file_and_environment(tmp_path: Path, monkeypatch):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"website_sso_http_origins": ["http://172.16.18.6:8089"]}))
+    assert load_config(path).website_sso_http_origins == ["http://172.16.18.6:8089"]
+    monkeypatch.setenv(
+        "OCTOP_WEBSITE_SSO_HTTP_ORIGINS", " http://172.16.18.6:8090, http://172.16.18.6:8091 "
+    )
+    assert load_config(path).website_sso_http_origins == [
+        "http://172.16.18.6:8090",
+        "http://172.16.18.6:8091",
+    ]
+
+
+@pytest.mark.parametrize(
+    "origins",
+    [
+        "http://172.16.18.6:8089",
+        ["http://172.16.18.6:8089", "not-an-origin"],
+        ["http://*.example.test"],
+        ["https://app.example.test"],
+        ["http://user:secret@app.example.test"],
+        ["http://app.example.test/path"],
+        ["http://app.example.test?query=yes"],
+        ["http://app.example.test#fragment"],
+    ],
+)
+def test_invalid_website_sso_http_origins_fail_at_configuration_load(tmp_path, origins):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"website_sso_http_origins": origins}))
+    with pytest.raises(ValueError, match="website_sso_http_origins"):
+        load_config(path)
+
+
+def test_website_sso_http_origins_normalize_host_and_default_port(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"website_sso_http_origins": ["http://APP.example.test:80/"]}))
+    assert load_config(path).website_sso_http_origins == ["http://app.example.test"]
 
 
 def test_loads_backup_section(tmp_path: Path):

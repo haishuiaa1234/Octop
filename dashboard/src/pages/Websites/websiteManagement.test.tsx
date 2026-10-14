@@ -42,6 +42,33 @@ beforeEach(() => {
 });
 
 describe("website SSO administration", () => {
+  it("defers intranet HTTP admission to the server when editing a registered app", async () => {
+    const httpSite = {
+      ...site,
+      url: "http://172.16.18.6:8089/",
+      sso_callback_url: "http://172.16.18.6:8089/auth/octop/callback",
+    };
+    vi.mocked(websiteApi.manage).mockResolvedValue([httpSite]);
+    vi.mocked(websiteApi.save).mockResolvedValue(httpSite);
+    render(
+      <App>
+        <WebsiteManagement />
+      </App>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "websites.edit" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "websites.save" }));
+    await waitFor(() =>
+      expect(websiteApi.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sso_callback_url: httpSite.sso_callback_url,
+        }),
+        "app-one",
+      ),
+    );
+  });
+
   it("edits and preserves the opt-in authentication mode and callback", async () => {
     vi.mocked(websiteApi.save).mockResolvedValue(site);
     render(

@@ -65,6 +65,8 @@ class WebsiteService:
 
     def save(self, user: User, data: WebsiteInput, website_id: str | None = None) -> WebsiteRecord:
         self._admin(user)
+        if not data.sso_transport_allowed(self.services.config.website_sso_http_origins):
+            raise OctopError.localized(ErrorCode.WEBSITE_SSO_HTTPS_REQUIRED, user.locale)
         if any(self.services.user_repo.get(user_id) is None for user_id in data.user_ids):
             raise OctopError.localized(ErrorCode.NOT_FOUND, user.locale, status=422)
         record = WebsiteRecord(website_id=website_id or uuid4().hex, **data.model_dump())

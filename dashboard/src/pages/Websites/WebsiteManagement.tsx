@@ -325,10 +325,6 @@ export default function WebsiteManagement() {
                       !app ||
                       !callback ||
                       app.origin !== callback.origin ||
-                      (app.protocol !== "https:" &&
-                        !["localhost", "127.0.0.1", "[::1]"].includes(
-                          app.hostname,
-                        )) ||
                       callback.hash ||
                       callback.searchParams.has("code") ||
                       callback.searchParams.has("state")

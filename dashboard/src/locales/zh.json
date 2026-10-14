@@ -89,6 +89,7 @@
   "apiErrors": {
     "WEBSITE_SSO_NOT_CONFIGURED": "请先启用 Octop 免登录并生成应用密钥。",
     "WEBSITE_SSO_INVALID_ORIGIN": "免登录应用必须与 Octop 使用不同的源。",
+    "WEBSITE_SSO_HTTPS_REQUIRED": "免登录需使用 HTTPS；仅显式加入测试白名单的应用来源可使用 HTTP。",
     "AUTH_FAILED": "认证失败。",
     "TOKEN_EXPIRED": "登录已过期，请重新登录。",
     "SETUP_REQUIRED": "需要完成初始设置。",

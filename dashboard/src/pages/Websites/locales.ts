@@ -31,7 +31,7 @@ export const websiteLocales = {
     authOctop: "Octop 免登录",
     ssoCallback: "免登录回调地址",
     ssoCallbackInvalid:
-      "回调须与网站地址同源，使用 HTTPS（本机开发可用 HTTP），且不能包含片段或 code/state 参数。",
+      "回调须与网站地址同源，且不能包含片段或 code/state 参数。HTTP 来源须由服务端显式加入测试白名单（本机开发除外）。",
     ssoSecret: "应用密钥",
     generate: "生成密钥",
     close: "关闭",
@@ -92,7 +92,7 @@ export const websiteLocales = {
     authOctop: "Octop single sign-on",
     ssoCallback: "SSO callback URL",
     ssoCallbackInvalid:
-      "Use a callback on the website origin over HTTPS (HTTP for local development only), without a fragment or code/state parameters.",
+      "Use a callback on the website origin without a fragment or code/state parameters. HTTP origins require a server-side testing allowlist (except loopback development).",
     ssoSecret: "Application secret",
     generate: "Generate secret",
     close: "Close",

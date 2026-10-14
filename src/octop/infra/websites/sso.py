@@ -101,7 +101,12 @@ class WebsiteSsoService:
 
     def _site(self, website_id: str) -> tuple[str, WebsiteRecord] | None:
         raw = self.services.website_repo.get(website_id)
-        return (raw, WebsiteRecord.model_validate_json(raw)) if raw else None
+        if raw is None:
+            return None
+        site = WebsiteRecord.model_validate_json(raw)
+        if not site.sso_transport_allowed(self.services.config.website_sso_http_origins):
+            return None
+        return raw, site
 
     def _user(self, user_id: int) -> User | None:
         row = self.services.user_repo.get(user_id)

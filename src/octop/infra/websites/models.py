@@ -96,15 +96,23 @@ class WebsiteInput(BaseModel):
     def validate_sso(self) -> Self:
         if self.auth_mode == "octop":
             callback = self.sso_callback_url
-            parsed = urlsplit(self.url)
             if (
                 not callback
                 or url_origin(self.url) != url_origin(callback)
                 or urlsplit(callback).fragment
-                or (parsed.scheme != "https" and not _loopback(parsed.hostname or ""))
             ):
                 raise ValueError(tr("websites.invalid_sso_config", "en"))
         return self
+
+    def sso_transport_allowed(self, http_origins: list[str]) -> bool:
+        if self.auth_mode != "octop":
+            return True
+        scheme, _, _ = origin = url_origin(self.url)
+        return (
+            scheme == "https"
+            or _loopback(urlsplit(self.url).hostname or "")
+            or origin in [url_origin(value) for value in http_origins]
+        )
 
     @model_validator(mode="after")
     def validate_audience(self) -> Self:

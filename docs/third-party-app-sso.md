@@ -15,7 +15,30 @@
 | 应用回调 | `https://reports.corp.example/auth/octop/callback` |
 | 应用后端访问 Octop 的地址 | `https://octop.corp.example`，或可信的内部 HTTPS 地址 |
 
-origin 是协议、主机和有效端口的组合。两个应用不能通过反向代理、重定向或相同路径共享 origin，否则会共享浏览器存储安全边界。应用入口与回调必须同 origin。生产使用 HTTPS；HTTP 只允许 `localhost`、`127.0.0.1`、`[::1]` 等 loopback 开发地址，不允许把内网 IP 的 HTTP 当生产例外。
+origin 是协议、主机和有效端口的组合。两个应用不能通过反向代理、重定向或相同路径共享 origin，否则会共享浏览器存储安全边界。应用入口与回调必须同 origin。生产使用 HTTPS；默认仅 `localhost`、`127.0.0.1`、`[::1]` 等 loopback 开发地址允许 HTTP。受控内网临时测试可使用下述精确来源白名单，不能把内网 IP 的 HTTP 当生产例外。
+
+### 临时内网 HTTP 测试
+
+工作台服务器的 `config.json` 显式加入应用来源，重启工作台生效：
+
+```json
+{ "website_sso_http_origins": ["http://172.16.18.6:8089"] }
+```
+
+只合并该字段，不覆盖已有配置。也可用 `OCTOP_WEBSITE_SSO_HTTP_ORIGINS` 设置逗号分隔的来源列表，它优先于文件配置。列表默认空，不支持通配符；协议、主机、有效端口精确匹配。移除后重启会禁止继续签发和兑换该来源的授权码，但不会撤销应用已有会话。
+
+独立 Demo 配置：
+
+```text
+OCTOP_BASE_URL=http://127.0.0.1:8088
+OCTOP_ORIGIN=http://172.16.18.6:8088
+DEMO_BASE_URL=http://172.16.18.6:8089
+DEMO_SSO_HTTP_ORIGINS=http://172.16.18.6:8088,http://172.16.18.6:8089
+```
+
+其余网站 ID、应用密钥和会话密钥仍按下文配置。登记的应用回调为 `http://172.16.18.6:8089/auth/octop/callback`。Demo 的 HTTP 浏览器地址必须使用相同主机和不同端口；不同域名或混用 HTTP/HTTPS 无法依靠 HTTP `SameSite=Lax` Cookie 保证 iframe 会话。应用后端的 loopback 调用地址不受此浏览器同站要求影响。
+
+HTTP 会明文传输凭据、授权码和 Cookie。只在受控内网使用虚构测试数据；正式接入应恢复 HTTPS、同步入口/回调/来源配置并清空 HTTP 白名单。白名单不替代网站访问授权、密钥或 PKCE 校验。
 
 ### 管理员配置
 
@@ -119,22 +142,22 @@ Demo 将每个已认证账号赋予应用本地 `viewer` / `reports:read`，这�
 
 ### 172.16.18.6 示例配置
 
-此环境保留原来的 `8088` 服务，使用两个独立的 HTTPS origin 演示免重复登录：
+此环境暂时使用同一内网 IP 的两个独立 HTTP origin 演示免重复登录，保留原来的 `8088` 服务，无需安装证书：
 
 | 项目 | 地址或配置 |
 | --- | --- |
-| 工作台入口 | `https://172.16.18.6:8443` |
+| 工作台入口 | `http://172.16.18.6:8088` |
 | 业务网站名称 | `SSO 免登录示例` |
-| 应用入口 | `https://172.16.18.6:8444/` |
-| 应用回调 | `https://172.16.18.6:8444/auth/octop/callback` |
+| 应用入口 | `http://172.16.18.6:8089/` |
+| 应用回调 | `http://172.16.18.6:8089/auth/octop/callback` |
 | 应用后端调用地址 | `http://127.0.0.1:8088`，仅服务器本机 loopback |
 | 打开方式 / 认证模式 | `embed` / `octop` |
-| HTTPS 服务 | systemd 用户服务 `octop-sso-https.service` |
+| HTTP 反向代理 | 现有 systemd 用户服务 `octop-sso-https.service` 增加 `8089` 监听 |
 | Demo 服务 | systemd 用户服务 `octop-sso-demo.service`，监听 `127.0.0.1:5187` |
 
-HTTPS 入口使用 [Caddy 内部 CA](https://caddyserver.com/docs/caddyfile/directives/tls) 颁发的内网证书。使用前需在客户端信任该 CA，或替换为企业已信任的证书。根证书公开下载地址为 `http://172.16.18.6:8088/sso-demo-root-ca.crt`；下载后应与通过可信渠道提供的证书 SHA256 指纹核对，再导入当前用户的受信任根证书存储，不需要导入服务器私钥。不要以禁用应用后端 TLS 验证替代证书信任。
+原有 `8443` / `8444` HTTPS 监听保留，但当前 Demo 只接受登记的 HTTP 工作台 origin，请勿混用 HTTPS 工作台与 HTTP Demo。正式恢复 HTTPS 时同步网站 URL、回调、Demo 的 `OCTOP_ORIGIN` / `DEMO_BASE_URL` 并移除两侧 HTTP 白名单；客户端需信任内部 CA 或企业证书，不以关闭 TLS 验证替代证书信任。
 
-登录 **8443 的工作台入口**，然后打开「业务网站 → SSO 免登录示例」。Demo 显示同一账号，并建立自己的应用会话；新标签页打开、应用内退出和重新登录也使用相同的票据交换。原来的 HTTP 工作台入口继续可用，但该 Demo 只接受登记的 HTTPS 工作台 origin，不会向 HTTP 父窗口响应 SSO 握手。
+登录 **8088 的工作台入口**，然后打开「业务网站 → SSO 免登录示例」。Demo 显示同一账号，并建立自己的应用会话；新标签页打开、应用内退出和重新登录也使用相同的票据交换。直接打开应用而没有已登记的工作台父窗口或 opener 时，不会凭网址自动获得身份。
 
 密钥文件为服务器上的 `~/.octop/website-sso-demo/demo.env`，仅服务用户可读，不进入代码仓库。Demo 只包含虚构的报表示例，并为已认证用户赋予应用本地 `viewer` 权限，不自动赋予工作台管理员业务权限。真实企业微信扫码仍需企业后台配置正确的工作台回调地址；模拟身份测试不能替代该企业配置验证。
 
@@ -333,7 +356,7 @@ async def reports(session: ApplicationSession = Depends(require_session)):
 | 应用访问 Octop | HTTPS 并验证证书，不关闭 TLS 校验；可信 loopback 开发例外不用于外网或跨机器 |
 | iframe | 保留 Octop 的隔离策略，不关闭 sandbox，不给第三方读取 Octop localStorage/Token 的通道 |
 
-Demo 的 HTTPS 配置使用 `SameSite=None; Secure` 以支持跨站嵌入；loopback HTTP 用 `Lax`。同一 `127.0.0.1` 的不同端口是不同 origin、同站，可以进行本机联调。Cookie 不按端口隔离，Demo 使用专用 Cookie 名以避免与 Octop 冲突。
+Demo 的 HTTPS 配置使用 `SameSite=None; Secure` 以支持跨站嵌入；loopback 或显式白名单内的同主机 HTTP 使用 `Lax`。同一主机的不同端口是不同 origin、同站，可以进行本机或受控内网联调。Cookie 不按端口隔离，Demo 使用专用 Cookie 名以避免与 Octop 冲突。HTTP 使用 `octop_demo_http_session`，HTTPS 保留 `octop_demo_session`，避免浏览器已有的 Secure Cookie 阻止 HTTP 模式保存会话。
 
 如果浏览器阻止第三方 Cookie，单纯设置 `SameSite=None` 不能强制解除限制。优先改同站不同 origin 的 HTTPS 部署；也可在 Octop 选择新标签页，应用在顶层上下文使用自己的 Cookie。不要让用户关闭全局浏览器安全策略。
 

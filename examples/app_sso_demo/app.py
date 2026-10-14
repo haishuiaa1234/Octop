@@ -26,7 +26,9 @@ APP_SESSION_SECONDS = 8 * 60 * 60
 _STATIC = Path(__file__).with_name("static")
 
 
-def _validated_url(value: str, name: str, *, origin_only: bool = False) -> str:
+def _validated_url(
+    value: str, name: str, *, origin_only: bool = False, http_origins: tuple[str, ...] = ()
+) -> str:
     parts = urlsplit(value)
     if (
         parts.scheme not in {"http", "https"}
@@ -43,13 +45,13 @@ def _validated_url(value: str, name: str, *, origin_only: bool = False) -> str:
         loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
     except ValueError:
         loopback = host == "localhost"
-    if parts.scheme == "http" and not loopback:
-        raise ValueError(f"{name} must use HTTPS (HTTP is allowed only for loopback development)")
     port = parts.port
     authority = f"[{host}]" if ":" in host else host
     if port is not None and (parts.scheme, port) not in {("http", 80), ("https", 443)}:
         authority += f":{port}"
     origin = f"{parts.scheme}://{authority}"
+    if parts.scheme == "http" and not loopback and origin not in http_origins:
+        raise ValueError(f"{name} must use HTTPS unless its HTTP origin is explicitly allowed")
     return origin if origin_only else origin + parts.path.rstrip("/")
 
 
@@ -80,11 +82,29 @@ class DemoSettings:
         missing = [name for name, value in values.items() if not value]
         if missing:
             raise ValueError("Missing required configuration: " + ", ".join(missing))
-        octop_base_url = _validated_url(values["OCTOP_BASE_URL"], "OCTOP_BASE_URL")
-        octop_origin = _validated_url(values["OCTOP_ORIGIN"], "OCTOP_ORIGIN", origin_only=True)
-        app_origin = _validated_url(values["DEMO_BASE_URL"], "DEMO_BASE_URL", origin_only=True)
+        http_origins = tuple(
+            value.strip().rstrip("/")
+            for value in os.environ.get("DEMO_SSO_HTTP_ORIGINS", "").split(",")
+            if value.strip()
+        )
+        octop_base_url = _validated_url(
+            values["OCTOP_BASE_URL"], "OCTOP_BASE_URL", http_origins=http_origins
+        )
+        octop_origin = _validated_url(
+            values["OCTOP_ORIGIN"], "OCTOP_ORIGIN", origin_only=True, http_origins=http_origins
+        )
+        app_origin = _validated_url(
+            values["DEMO_BASE_URL"], "DEMO_BASE_URL", origin_only=True, http_origins=http_origins
+        )
         if app_origin == octop_origin:
             raise ValueError("The independent application and Octop must have different origins")
+        if app_origin.startswith("http://") and (
+            not octop_origin.startswith("http://")
+            or urlsplit(app_origin).hostname != urlsplit(octop_origin).hostname
+        ):
+            raise ValueError(
+                "HTTP iframe development requires HTTP browser origins on the same host"
+            )
         if len(values["DEMO_SESSION_SECRET"]) < 32:
             raise ValueError("DEMO_SESSION_SECRET must contain at least 32 random characters")
         return cls(
@@ -144,7 +164,11 @@ def create_app(*, exchange_transport: httpx.AsyncBaseTransport | None = None) ->
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.session_secret,
-        session_cookie="octop_demo_session",
+        session_cookie=(
+            "octop_demo_session"
+            if settings.app_origin.startswith("https://")
+            else "octop_demo_http_session"
+        ),
         max_age=APP_SESSION_SECONDS,
         same_site="none" if settings.app_origin.startswith("https://") else "lax",
         https_only=settings.app_origin.startswith("https://"),

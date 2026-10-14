@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
+from pydantic import HttpUrl, TypeAdapter, ValidationError
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_UPLOAD_MB = 100
@@ -130,6 +132,7 @@ class OctopConfig:
     login_max_attempts: int = 5
     login_lockout_seconds: int = 900
     cors_origins: list[str] = field(default_factory=list)
+    website_sso_http_origins: list[str] = field(default_factory=list)
     default_timezone: str = "Asia/Shanghai"
     enable_dashboard: bool = True
     enable_api_docs: bool = False
@@ -157,6 +160,30 @@ def _defaults_for_file() -> dict[str, Any]:
     db.pop("url", None)
     data["database"] = db
     return data
+
+
+def _parse_website_sso_http_origins(raw: object) -> list[str]:
+    message = "config.website_sso_http_origins must be a list of exact HTTP origins"
+    if not isinstance(raw, list):
+        raise ValueError(message)
+    origins: list[str] = []
+    for value in raw:
+        try:
+            parsed = TypeAdapter(HttpUrl).validate_python(value)
+        except ValidationError as exc:
+            raise ValueError(message) from exc
+        if (
+            parsed.scheme != "http"
+            or "*" in (parsed.host or "")
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {None, "/"}
+            or parsed.query is not None
+            or parsed.fragment is not None
+        ):
+            raise ValueError(message)
+        origins.append(str(parsed).removesuffix("/"))
+    return origins
 
 
 def _parse_tls_section(raw: object) -> TlsConfig:
@@ -483,6 +510,8 @@ def load_config(path: Path) -> OctopConfig:
         merged["default_timezone"] = v
     if v := os.environ.get("OCTOP_CORS_ORIGINS"):
         merged["cors_origins"] = [s.strip() for s in v.split(",") if s.strip()]
+    if v := os.environ.get("OCTOP_WEBSITE_SSO_HTTP_ORIGINS"):
+        merged["website_sso_http_origins"] = [s.strip() for s in v.split(",") if s.strip()]
     if v := os.environ.get("OCTOP_ENABLE_DASHBOARD"):
         merged["enable_dashboard"] = _coerce_bool(
             "OCTOP_ENABLE_DASHBOARD", v, bool(merged["enable_dashboard"])
@@ -604,6 +633,9 @@ def load_config(path: Path) -> OctopConfig:
         login_max_attempts=int(merged.get("login_max_attempts", 5)),
         login_lockout_seconds=int(merged.get("login_lockout_seconds", 900)),
         cors_origins=list(merged.get("cors_origins") or []),
+        website_sso_http_origins=_parse_website_sso_http_origins(
+            merged.get("website_sso_http_origins", [])
+        ),
         default_timezone=str(merged.get("default_timezone") or "Asia/Shanghai"),
         enable_dashboard=bool(merged["enable_dashboard"]),
         enable_api_docs=bool(merged["enable_api_docs"]),

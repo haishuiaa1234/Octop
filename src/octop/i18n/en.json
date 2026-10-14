@@ -2,7 +2,7 @@
   "websites": {
     "invalid_url": "Enter an absolute HTTP or HTTPS URL without credentials or whitespace.",
     "users_required": "Select at least one allowed user.",
-    "invalid_sso_config": "SSO requires HTTPS (except loopback development), and a same-origin callback without credentials or fragments."
+    "invalid_sso_config": "SSO requires a same-origin callback without credentials or fragments."
   },
   "slash": {
     "error": {
@@ -354,6 +354,7 @@
     "USER_DISABLED": "This account has been disabled.",
     "WEBSITE_SSO_NOT_CONFIGURED": "Enable Octop SSO and generate an application secret before signing in.",
     "WEBSITE_SSO_INVALID_ORIGIN": "SSO applications must use a different origin from Octop.",
+    "WEBSITE_SSO_HTTPS_REQUIRED": "SSO requires HTTPS unless this application's HTTP origin is explicitly allowed for testing.",
     "LOGIN_LOCKED": "Too many failed sign-in attempts. Try again in {minutes} minutes.",
     "USERNAME_TAKEN": "Username is already taken.",
     "EMAIL_TAKEN": "Email is already taken.",
