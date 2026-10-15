@@ -30,6 +30,7 @@ import {
 } from "../utils/messageGrouping";
 import { resolveLiveSpeakerNames } from "../utils/liveSpeakerLabel";
 import { useAgent } from "../../../context/AgentContext";
+import { useChatAgentProfile } from "../ChatAgentProfileContext";
 import {
   nextCanLoadOlder,
   shouldAutoFillOlderHistory,
@@ -287,6 +288,7 @@ export default function MessageList(props: MessageListProps) {
 
   const { t } = useTranslation();
   const { agents, activeAgent } = useAgent();
+  const teamMembers = useChatAgentProfile()?.teamMembers;
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -331,12 +333,22 @@ export default function MessageList(props: MessageListProps) {
   });
   const liveSpeakerNames = useMemo(
     () =>
-      resolveLiveSpeakerNames(liveSpeakers, agents, {
-        hostId: activeAgent?.agent_id,
-        hostName: activeAgent?.name,
-        limit: 2,
-      }),
-    [liveSpeakers, agents, activeAgent?.agent_id, activeAgent?.name],
+      resolveLiveSpeakerNames(
+        liveSpeakers,
+        [...agents, ...(teamMembers ?? [])],
+        {
+          hostId: activeAgent?.agent_id,
+          hostName: activeAgent?.name,
+          limit: 2,
+        },
+      ),
+    [
+      liveSpeakers,
+      agents,
+      teamMembers,
+      activeAgent?.agent_id,
+      activeAgent?.name,
+    ],
   );
 
   const stableSessionKey = sessionKey || "__default__";

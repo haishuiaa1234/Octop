@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Dropdown, Popconfirm, Switch, Tooltip } from "antd";
+import { Dropdown, Popconfirm, Switch, Tag, Tooltip } from "antd";
 import type { MenuProps } from "antd";
 import { message } from "@/utils/antdMessage";
 
@@ -128,7 +128,11 @@ export const TeamCard = memo(function TeamCard({
 
   // Poll during transient states (local agents only — bridge shadows have no runtime status).
   useEffect(() => {
-    if (agent.bridge || !TRANSIENT.has(localState)) {
+    if (
+      agent.bridge ||
+      agent.is_owner === false ||
+      !TRANSIENT.has(localState)
+    ) {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
       return;
@@ -153,7 +157,14 @@ export const TeamCard = memo(function TeamCard({
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
     };
-  }, [localState, agent.agent_id, agent.bridge, onStateChange, refreshAgents]);
+  }, [
+    localState,
+    agent.agent_id,
+    agent.bridge,
+    agent.is_owner,
+    onStateChange,
+    refreshAgents,
+  ]);
 
   const isTransient = TRANSIENT.has(localState);
   const switchChecked = localState === "running" || localState === "starting";
@@ -241,6 +252,15 @@ export const TeamCard = memo(function TeamCard({
                 <Users size={10} strokeWidth={2.4} aria-hidden />
                 {t("chat.teamBadge")}
               </span>
+              {agent.is_shared && (
+                <Tag color="blue">
+                  {isOwner
+                    ? t("experts.share.badge")
+                    : t("experts.teams.shareFromOwner", {
+                        name: agent.owner_username,
+                      })}
+                </Tag>
+              )}
               <RemoteExpertHint agent={agent} />
               <Tooltip title={formatAgentState(localState, t)}>
                 <span
@@ -259,6 +279,7 @@ export const TeamCard = memo(function TeamCard({
               size="small"
               checked={switchChecked}
               loading={isTransient || actionLoading}
+              disabled={!isOwner}
               onChange={(checked) => void handleToggle(checked)}
               className={styles.agentCard2Switch}
             />
@@ -317,7 +338,7 @@ export const TeamCard = memo(function TeamCard({
                 </span>
               </div>
             </Tooltip>
-            {isAgentModelConfigError(localError) && (
+            {isOwner && isAgentModelConfigError(localError) && (
               <button
                 type="button"
                 className={styles.agentCardErrorAction}
@@ -341,7 +362,7 @@ export const TeamCard = memo(function TeamCard({
             <button
               type="button"
               className={styles.agentCard2EditBtn}
-              disabled={!chatReady}
+              disabled={!isOwner || !chatReady}
               onClick={() => setWorkspaceDrawerOpen(true)}
               aria-label={t("pageShell.workspace.title")}
             >
@@ -353,7 +374,7 @@ export const TeamCard = memo(function TeamCard({
             <button
               type="button"
               className={styles.agentCard2EditBtn}
-              disabled={isTransient || actionLoading}
+              disabled={!isOwner || isTransient || actionLoading}
               onClick={() => void handleReload()}
               aria-label={t("experts.reloadAgent")}
             >
@@ -365,6 +386,7 @@ export const TeamCard = memo(function TeamCard({
             <button
               type="button"
               className={styles.agentCard2EditBtn}
+              disabled={!isOwner}
               onClick={() => onEdit(agent.agent_id)}
               aria-label={t("common.edit", "Edit")}
             >
@@ -396,36 +418,38 @@ export const TeamCard = memo(function TeamCard({
             </Popconfirm>
           ) : null}
 
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "memory",
-                  icon: <Notebook size={14} />,
-                  label: t("experts.teams.memoryBtn"),
-                  onClick: () => setMemoryCatalogOpen(true),
-                },
-                {
-                  key: "channels",
-                  icon: <Waypoints size={14} />,
-                  label: t("experts.channelsBtn"),
-                  onClick: () => setChannelCatalogOpen(true),
-                },
-              ] satisfies MenuProps["items"],
-            }}
-            trigger={["click"]}
-            placement="bottomRight"
-          >
-            <Tooltip title={t("common.more")} mouseEnterDelay={0.5}>
-              <button
-                type="button"
-                className={styles.agentCard2EditBtn}
-                aria-label={t("common.more")}
-              >
-                <MoreHorizontal size={13} />
-              </button>
-            </Tooltip>
-          </Dropdown>
+          {isOwner && (
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "memory",
+                    icon: <Notebook size={14} />,
+                    label: t("experts.teams.memoryBtn"),
+                    onClick: () => setMemoryCatalogOpen(true),
+                  },
+                  {
+                    key: "channels",
+                    icon: <Waypoints size={14} />,
+                    label: t("experts.channelsBtn"),
+                    onClick: () => setChannelCatalogOpen(true),
+                  },
+                ] satisfies MenuProps["items"],
+              }}
+              trigger={["click"]}
+              placement="bottomRight"
+            >
+              <Tooltip title={t("common.more")} mouseEnterDelay={0.5}>
+                <button
+                  type="button"
+                  className={styles.agentCard2EditBtn}
+                  aria-label={t("common.more")}
+                >
+                  <MoreHorizontal size={13} />
+                </button>
+              </Tooltip>
+            </Dropdown>
+          )}
 
           {chatReady ? (
             <button
@@ -437,9 +461,10 @@ export const TeamCard = memo(function TeamCard({
               {t("experts.openChat", "对话")}
               <ChevronRight size={13} />
             </button>
-          ) : localState === "failed" ||
-            localState === "stopped" ||
-            localState === "created" ? (
+          ) : isOwner &&
+            (localState === "failed" ||
+              localState === "stopped" ||
+              localState === "created") ? (
             <button
               type="button"
               className={`${styles.agentCard2ChatBtn} ${styles.teamCardChatBtn}`}

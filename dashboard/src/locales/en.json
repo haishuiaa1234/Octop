@@ -942,6 +942,7 @@
     "myTeams": "My Teams",
     "teams": {
       "betaBadge": "Beta",
+      "shareFromOwner": "Shared team · from {{name}}",
       "create": "Create team",
       "createTitle": "Create expert team",
       "editTitle": "Edit team",
@@ -1359,6 +1360,9 @@
     "sharedExpert": {
       "banner": "Shared expert · provided by {{name}}",
       "flag": "Shared"
+    },
+    "sharedTeam": {
+      "banner": "Shared team · provided by {{name}}"
     },
     "remoteExpert": {
       "banner": "Peer expert · via “{{name}}”. Chat history stays on the expert’s instance.",

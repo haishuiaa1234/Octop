@@ -6,7 +6,7 @@ import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from octop_harness.teams.inbox import InboxMessage
@@ -751,8 +751,77 @@ async def test_prepare_team_dispatch_tracks_job_and_forces_sync(
     if extra is not None:
         assert extra == {
             "peer_invoke_mode": "sync",
+            "team_host_agent_id": "host",
             "team_peers": ["other"],
         }
+
+
+@pytest.mark.asyncio
+async def test_shared_team_dispatch_keeps_each_viewers_member_thread(processor_env: dict) -> None:
+    from octop_harness.teams.util import PeerCall
+
+    processor = processor_env["processor"]
+    processor._agent_repo.create(agent_id="host", user_id=1, name="Host", kind="team")
+    processor._agent_repo.set_shared("host", True)
+    processor._user_repo.create(username="peer", password_hash="h", role="user")
+    processor._agent_manager.teams.member_ids.return_value = ["child", "other"]
+    registry = processor_env["gateway"].thread_registry
+    prepared_threads = []
+    for uid in (1, 2):
+        room_id = f"room-{uid}"
+        sk = registry.dashboard_key(agent_id="host", user_id=uid)
+        registry.ensure_thread(
+            thread_id=room_id,
+            agent_id="host",
+            user_id=uid,
+            channel_type="dashboard",
+            session_key=sk,
+        )
+        prepared = await processor.prepare_peer_session(
+            PeerCall(
+                from_agent_id="host",
+                to_agent_id="child",
+                user_id=uid,
+                message="hello",
+                source_thread_id=room_id,
+                source_session_key=sk,
+            )
+        )
+        assert prepared is not None
+        member_thread = registry.get_thread(prepared.thread_id)
+        assert member_thread is not None
+        assert member_thread.user_id == uid
+        assert prepared.configurable["team_host_agent_id"] == "host"
+        prepared_threads.append(member_thread)
+    assert prepared_threads[0].thread_id != prepared_threads[1].thread_id
+    assert prepared_threads[0].session_key != prepared_threads[1].session_key
+
+
+def test_nested_member_runtime_keeps_team_scope(processor_env: dict) -> None:
+    from octop_harness.teams.util import PeerCall
+
+    processor = processor_env["processor"]
+    processor._agent_repo.create(agent_id="host", user_id=1, name="Host", kind="team")
+    processor._agent_manager.teams.member_ids.return_value = ["child", "other"]
+    with patch(
+        "langgraph.config.get_config",
+        return_value={"configurable": {"team_host_agent_id": "host"}},
+    ):
+        runtime = processor.teams._member_runtime(
+            PeerCall(
+                from_agent_id="child",
+                to_agent_id="other",
+                user_id=2,
+                message="help",
+                source_thread_id=None,
+                source_session_key=None,
+            )
+        )
+    assert runtime == {
+        "peer_invoke_mode": "sync",
+        "team_host_agent_id": "host",
+        "team_peers": ["child"],
+    }
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Collapse, Drawer, Form, Input, Select, Spin } from "antd";
+import {
+  Alert,
+  Collapse,
+  Drawer,
+  Form,
+  Input,
+  Select,
+  Spin,
+  Switch,
+} from "antd";
 import { message } from "@/utils/antdMessage";
 
 import {
@@ -40,6 +49,7 @@ interface TeamFormValues {
   description?: string;
   default_model: string;
   welcome_message?: string;
+  is_shared: boolean;
   member_ids: string[];
 }
 
@@ -74,6 +84,7 @@ export default function TeamDrawer({
         description: team.description ?? "",
         default_model: defaultModelToForm(team.default_model),
         welcome_message: team.welcome_message ?? "",
+        is_shared: team.is_shared === true,
         member_ids: team.member_ids ?? [],
       });
       let cancelled = false;
@@ -86,6 +97,7 @@ export default function TeamDrawer({
             description: record.description ?? "",
             default_model: defaultModelToForm(record.default_model),
             welcome_message: record.welcome_message ?? "",
+            is_shared: record.is_shared,
             member_ids: record.members.map((member) => member.agent_id),
           });
           setRosterExtras(
@@ -113,6 +125,7 @@ export default function TeamDrawer({
       description: "",
       default_model: MODEL_AUTO_VALUE,
       welcome_message: t("experts.teams.welcomeDefault"),
+      is_shared: false,
       member_ids: [],
     });
     setRosterExtras([]);
@@ -150,6 +163,7 @@ export default function TeamDrawer({
       icon_name: TEAM_ICON_NAME,
       icon_url: TEAM_AVATAR_URL,
       welcome_message: values.welcome_message?.trim() || null,
+      is_shared: values.is_shared,
       member_ids: selectedRosterIds(values.member_ids, pickerExperts),
     };
     setSubmitting(true);
@@ -230,6 +244,13 @@ export default function TeamDrawer({
         </Form.Item>
         <Form.Item name="description" label={t("experts.agentDescription")}>
           <Input.TextArea rows={2} />
+        </Form.Item>
+        <Form.Item
+          name="is_shared"
+          label={t("experts.share.toggle")}
+          valuePropName="checked"
+        >
+          <Switch />
         </Form.Item>
         <Form.Item
           name="welcome_message"

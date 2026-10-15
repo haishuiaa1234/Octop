@@ -58,6 +58,37 @@ function splitWithTool(speaker?: string) {
 }
 
 describe("TurnProcessBlocks team speaker chrome", () => {
+  it("labels private member process avatars from team summaries", () => {
+    render(
+      <ChatAgentProfileProvider
+        canOpen={false}
+        onOpen={vi.fn()}
+        isTeam
+        teamMembers={[
+          {
+            agent_id: "private-member",
+            name: "Private member",
+            icon_url: "/private-member.png",
+          },
+        ]}
+      >
+        <TurnProcessBlocks
+          split={splitWithTool("private-member")}
+          isStreaming={false}
+          hideToolMedia
+          agentId="private-member"
+          showAvatar
+        />
+      </ChatAgentProfileProvider>,
+    );
+    const avatar = screen.getByLabelText("Private member");
+    expect(avatar.querySelector("img")).toHaveAttribute(
+      "src",
+      "/private-member.png",
+    );
+    expect(screen.queryByRole("button", { name: "Private member" })).toBeNull();
+  });
+
   it("labels the host process avatar as team host", () => {
     render(
       <ChatAgentProfileProvider canOpen onOpen={vi.fn()} isTeam>

@@ -86,6 +86,7 @@ import ChatDockPanels from "./components/ChatDockPanels";
 import type { ChatDockAddTabHandlers } from "./components/ChatDockPanel";
 import { ChatFilePreviewProvider } from "./ChatFilePreviewContext";
 import { ChatAgentProfileProvider } from "./ChatAgentProfileContext";
+import { useSharedTeamMembers } from "./hooks/useSharedTeamMembers";
 import {
   ChatToolDockProvider,
   dockTabIdForToolCall,
@@ -207,6 +208,7 @@ function ChatPageInner() {
     () => agents.find((a) => a.agent_id === resolvedAgentId) ?? null,
     [agents, resolvedAgentId],
   );
+  const sharedTeamMembers = useSharedTeamMembers(activeAgent);
   const agentChatReady = isAgentChatReady(activeAgent?.state, activeAgent);
   const trajectoryEnabled =
     activeAgent !== null && activeAgent.config?.enable_trajectory !== false;
@@ -653,8 +655,13 @@ function ChatPageInner() {
   // must still find an expert that was running when the user picked it but
   // has since been stopped, otherwise the chip silently vanishes.
   const chatAgentOptions = useMemo(
-    () => agents.map(projectChatAgentOption),
-    [agents],
+    () => [
+      ...agents.map(projectChatAgentOption),
+      ...sharedTeamMembers.filter(
+        (member) => !agents.some((agent) => agent.agent_id === member.agent_id),
+      ),
+    ],
+    [agents, sharedTeamMembers],
   );
   // Subset for the chat-side *pickers* (`@` button popover, `@` mention menu).
   // Only running experts — picking a stopped one would dispatch into an
@@ -1525,6 +1532,7 @@ function ChatPageInner() {
               ) : (
                 <ChatAgentProfileProvider
                   canOpen={Boolean(resolvedAgentId) && !sharedExpertViewer}
+                  teamMembers={sharedTeamMembers}
                   onOpen={(agentId) => {
                     setProfileAgentId(
                       agentId && agentId !== resolvedAgentId ? agentId : null,

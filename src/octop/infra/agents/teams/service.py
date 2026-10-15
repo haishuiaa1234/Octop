@@ -7,6 +7,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from octop.infra.agents.experts.avatar import (
+    agent_avatar_api_path,
+    display_agent_icon_url,
+    read_workspace_avatar,
+)
 from octop.infra.agents.settings.tool_catalog import BUILTIN_TOOL_CATALOG
 from octop.infra.agents.teams.jobs import TeamJobTracker
 from octop.infra.db.repos.agents import AgentRow
@@ -74,6 +79,16 @@ def _user_may_use_member(row: AgentRow, user: Any) -> bool:
     if row.user_id is not None and row.user_id == getattr(user, "id", None):
         return True
     return int(getattr(row, "is_shared", 0) or 0) == 1
+
+
+def _member_icon_url(team_id: str, member: AgentRow) -> str | None:
+    icon_url = display_agent_icon_url(
+        agent_id=member.agent_id, stored=member.icon_url, updated_at=member.updated_at
+    )
+    local = agent_avatar_api_path(member.agent_id)
+    if icon_url and icon_url.partition("?")[0] == local:
+        return icon_url.replace(local, f"/api/teams/{team_id}/members/{member.agent_id}/avatar", 1)
+    return icon_url
 
 
 def _normalize_member_ids(raw: Any) -> list[str]:
@@ -268,9 +283,10 @@ class TeamService:
             changed.append(row.agent_id)
         return changed
 
-    def team_payload(self, row: AgentRow) -> dict[str, Any]:
+    def team_payload(self, row: AgentRow, *, viewer_user_id: int | None = None) -> dict[str, Any]:
         ids = self.visible_member_ids(row.agent_id)
         member_rows = [self._repos.agent_repo.get(member_id) for member_id in ids]
+        owner = self._repos.user_repo.get(row.user_id) if row.user_id is not None else None
         return {
             "team_id": row.agent_id,
             "agent_id": row.agent_id,
@@ -283,6 +299,9 @@ class TeamService:
             "welcome_message": row.welcome_message,
             "state": row.last_state or "unknown",
             "kind": TEAM_KIND,
+            "is_shared": bool(int(row.is_shared or 0)),
+            "is_owner": row.user_id is not None and row.user_id == viewer_user_id,
+            "owner_username": owner.username if owner is not None else None,
             "member_ids": ids,
             "members": [
                 {
@@ -290,7 +309,7 @@ class TeamService:
                     "name": member.name,
                     "color": member.color,
                     "icon_name": member.icon_name,
-                    "icon_url": member.icon_url,
+                    "icon_url": _member_icon_url(row.agent_id, member),
                     "state": member.last_state or "unknown",
                     "is_shared": bool(int(member.is_shared or 0)),
                     "user_id": member.user_id,
@@ -300,10 +319,39 @@ class TeamService:
             ],
         }
 
+    async def member_avatar(self, team_id: str, member_id: str) -> tuple[bytes, str]:
+        """Read only the avatar of a currently usable member; caller checks host access."""
+        host = self._repos.agent_repo.get(team_id)
+        member = self._repos.agent_repo.get(member_id)
+        owner = (
+            self._repos.user_repo.get(host.user_id)
+            if host is not None and host.user_id is not None
+            else None
+        )
+        if (
+            host is None
+            or not is_team_agent(host)
+            or member is None
+            or is_team_agent(member)
+            or member_id not in self.member_ids(team_id)
+            or not (
+                (owner is not None and owner.role == "admin") or _user_may_use_member(member, owner)
+            )
+        ):
+            raise OctopError(ErrorCode.TEAM_MEMBER_INVALID, "member not accessible through team")
+        workspace = self._workspace(member_id)
+        found = await read_workspace_avatar(workspace) if workspace is not None else None
+        if found is None:
+            raise OctopError(ErrorCode.NOT_FOUND, "avatar not uploaded")
+        return found
+
     def list_for_user(self, user_id: int) -> list[dict[str, Any]]:
+        owned = self._repos.agent_repo.list_by_user(user_id)
+        shared = self._repos.agent_repo.list_shared(exclude_user_id=user_id)
+        rows = {row.agent_id: row for row in [*owned, *shared]}
         return [
-            self.team_payload(row)
-            for row in self._repos.agent_repo.list_by_user(user_id)
+            self.team_payload(row, viewer_user_id=user_id)
+            for row in rows.values()
             if is_team_agent(row)
         ]
 

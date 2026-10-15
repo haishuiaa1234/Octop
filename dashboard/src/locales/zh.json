@@ -942,6 +942,7 @@
     "myTeams": "我的团队",
     "teams": {
       "betaBadge": "Beta",
+      "shareFromOwner": "共享团队 · 来自 {{name}}",
       "create": "创建团队",
       "createTitle": "创建专家团队",
       "editTitle": "编辑团队",
@@ -1359,6 +1360,9 @@
     "sharedExpert": {
       "banner": "共享专家 · 由 {{name}} 提供",
       "flag": "共享"
+    },
+    "sharedTeam": {
+      "banner": "共享团队 · 由 {{name}} 提供"
     },
     "remoteExpert": {
       "banner": "对端专家 · 经「{{name}}」云端协同。对话记录保存在专家所在侧。",

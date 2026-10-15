@@ -15,6 +15,7 @@ import {
   PanelRight,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useChatAgentProfile } from "../ChatAgentProfileContext";
 import { useNavigate } from "react-router-dom";
 import type { ChatAttachment, ChatMessage } from "../hooks/useChat";
 import UserMessageComposerTags, {
@@ -557,6 +558,7 @@ function MessageBubble({
   const serverTimezone = useServerTimezone();
   const user = useCurrentUser();
   const { agents, activeAgent } = useAgent();
+  const teamMembers = useChatAgentProfile()?.teamMembers;
   const isTeamRoom = isTeamAgent(activeAgent);
   const speakerId =
     rewritePeerSpeakerId(
@@ -573,8 +575,17 @@ function MessageBubble({
   const expert = useMemo(
     () =>
       (speakerId && agents.find((item) => item.agent_id === speakerId)) ||
+      (isTeamRoom &&
+        teamMembers?.find((item) => item.agent_id === speakerId)) ||
       (isTeamHostSpeaker || !isTeamRoom ? activeAgent : undefined),
-    [speakerId, agents, activeAgent, isTeamHostSpeaker, isTeamRoom],
+    [
+      speakerId,
+      agents,
+      teamMembers,
+      activeAgent,
+      isTeamHostSpeaker,
+      isTeamRoom,
+    ],
   );
   const avatarTooltip = isTeamHostSpeaker
     ? t("chat.teamHostHover", { name: activeAgent?.name || expert?.name || "" })

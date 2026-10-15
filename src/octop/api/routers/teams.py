@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from octop.api.common.agent import assert_agent_owner
+from octop.api.common.agent import assert_agent_access_row, assert_agent_owner
 from octop.api.deps import current_user, get_server
 from octop.infra.agents.manager import AgentCreateSpec
 from octop.infra.agents.teams import (
@@ -32,6 +33,9 @@ class TeamCreateBody(BaseModel):
     welcome_message: str | None = None
     member_ids: list[str] = Field(default_factory=list)
     config: dict[str, Any] = Field(default_factory=dict)
+    is_shared: bool = Field(
+        default=False, description="Allow all other users to chat with this team."
+    )
 
 
 class TeamPatchBody(BaseModel):
@@ -42,6 +46,37 @@ class TeamPatchBody(BaseModel):
     icon_name: str | None = None
     welcome_message: str | None = None
     member_ids: list[str] | None = None
+    is_shared: bool | None = Field(default=None, description="Owner-only sharing toggle.")
+
+
+class TeamMemberSummary(BaseModel):
+    agent_id: str
+    name: str
+    color: str | None
+    icon_name: str | None
+    icon_url: str | None
+    state: str
+    is_shared: bool
+    user_id: int | None
+
+
+class TeamResponse(BaseModel):
+    team_id: str
+    agent_id: str
+    name: str
+    description: str | None
+    default_model: str | None
+    color: str | None
+    icon_name: str | None
+    icon_url: str
+    welcome_message: str | None
+    state: str
+    kind: str
+    is_shared: bool
+    is_owner: bool
+    owner_username: str | None
+    member_ids: list[str]
+    members: list[TeamMemberSummary]
 
 
 def _teams(server: Any) -> Any:
@@ -49,16 +84,21 @@ def _teams(server: Any) -> Any:
     return server.app_runtime.agent_registry.teams
 
 
-def _require_owned_team(server: Any, user: Any, team_id: str) -> Any:
+def _require_team(server: Any, user: Any, team_id: str, *, owner_only: bool = True) -> Any:
     assert server.app_runtime is not None
     row = server.app_runtime.agent_registry.get_row(team_id)
     if row is None or not is_team_agent(row):
         raise OctopError(ErrorCode.TEAM_NOT_FOUND, f"team {team_id!r} not found")
-    assert_agent_owner(row, user)
+    if owner_only:
+        assert_agent_owner(row, user)
+    else:
+        assert_agent_access_row(row, user)
     return row
 
 
-@router.get("/teams", summary="List my expert teams")
+@router.get(
+    "/teams", summary="List owned and shared expert teams", response_model=list[TeamResponse]
+)
 async def list_teams(
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
@@ -66,7 +106,7 @@ async def list_teams(
     return cast(list[dict[str, Any]], _teams(server).list_for_user(user.id))
 
 
-@router.post("/teams", summary="Create an expert team")
+@router.post("/teams", summary="Create an expert team", response_model=TeamResponse)
 async def create_team(
     body: TeamCreateBody,
     user: Any = Depends(current_user),
@@ -89,11 +129,14 @@ async def create_team(
         config=body.config,
         member_ids=member_ids,
         mcp_servers=[],
+        is_shared=body.is_shared,
     )
     row = await server.app_runtime.agent_registry.create(spec)
     return cast(
         dict[str, Any],
-        teams.team_payload(server.app_runtime.agent_registry.get_row(row.agent_id) or row),
+        teams.team_payload(
+            server.app_runtime.agent_registry.get_row(row.agent_id) or row, viewer_user_id=user.id
+        ),
     )
 
 
@@ -114,24 +157,34 @@ async def team_template_files(
     return files
 
 
-@router.get("/teams/{team_id}", summary="Get an expert team")
+@router.get(
+    "/teams/{team_id}",
+    summary="Get an owned or shared expert team",
+    description="Shared viewers may read member summaries, not member configuration or workspaces.",
+    response_model=TeamResponse,
+)
 async def get_team(
     team_id: str,
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> dict[str, Any]:
-    row = _require_owned_team(server, user, team_id)
-    return cast(dict[str, Any], _teams(server).team_payload(row))
+    row = _require_team(server, user, team_id, owner_only=False)
+    return cast(dict[str, Any], _teams(server).team_payload(row, viewer_user_id=user.id))
 
 
-@router.patch("/teams/{team_id}", summary="Update an expert team")
+@router.patch(
+    "/teams/{team_id}",
+    summary="Update an expert team",
+    description="Only the owner or an administrator may change configuration, members, or sharing.",
+    response_model=TeamResponse,
+)
 async def patch_team(
     team_id: str,
     body: TeamPatchBody,
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> dict[str, Any]:
-    _require_owned_team(server, user, team_id)
+    _require_team(server, user, team_id)
     teams = _teams(server)
     assert server.app_runtime is not None
     roster_changed = False
@@ -155,12 +208,36 @@ async def patch_team(
         updates["welcome_message"] = body.welcome_message
     if updates:
         await server.app_runtime.agent_registry.update(team_id, **updates)
+    if body.is_shared is not None:
+        await server.app_runtime.agent_registry.set_shared(team_id, body.is_shared)
     if roster_changed:
         await server.app_runtime.agent_registry.reload(team_id)
     row = server.app_runtime.agent_registry.get_row(team_id)
     if row is None:
         raise OctopError(ErrorCode.TEAM_NOT_FOUND, f"team {team_id!r} not found")
-    return cast(dict[str, Any], teams.team_payload(row))
+    return cast(dict[str, Any], teams.team_payload(row, viewer_user_id=user.id))
+
+
+@router.get(
+    "/teams/{team_id}/members/{member_id}/avatar",
+    summary="Fetch a team member avatar",
+    description="Requires access to the current team and roster; does not grant member workspace access.",
+    response_class=Response,
+    responses={
+        200: {"content": {"image/png": {}, "image/jpeg": {}, "image/webp": {}, "image/gif": {}}}
+    },
+)
+async def get_member_avatar(
+    team_id: str,
+    member_id: str,
+    user: Any = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> Response:
+    _require_team(server, user, team_id, owner_only=False)
+    data, media_type = await _teams(server).member_avatar(team_id, member_id)
+    return Response(
+        content=data, media_type=media_type, headers={"Cache-Control": "private, no-store"}
+    )
 
 
 @router.delete("/teams/{team_id}", status_code=204, summary="Delete an expert team")
@@ -169,6 +246,6 @@ async def delete_team(
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> None:
-    _require_owned_team(server, user, team_id)
+    _require_team(server, user, team_id)
     assert server.app_runtime is not None
     await server.app_runtime.agent_registry.delete(team_id)

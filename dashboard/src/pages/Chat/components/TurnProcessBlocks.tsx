@@ -8,6 +8,7 @@ import AssistantProcessSummary from "./AssistantProcessSummary";
 import { ToolDetailsInline } from "./MessageBubble";
 import { ExpertMessageAvatar } from "./MessageSender";
 import { useAgent } from "../../../context/AgentContext";
+import { useChatAgentProfile } from "../ChatAgentProfileContext";
 import { isTeamAgent, isTeamHostSpeaker } from "../../../utils/teamAgent";
 import { rewritePeerSpeakerId } from "../../../utils/remoteExpert";
 import { useTranslation } from "react-i18next";
@@ -39,6 +40,7 @@ export function TurnProcessBlocks({
 }: TurnProcessBlocksProps) {
   const { t } = useTranslation();
   const { agents, activeAgent } = useAgent();
+  const teamMembers = useChatAgentProfile()?.teamMembers;
   const isTeamRoom = isTeamAgent(activeAgent);
   const speakerId =
     rewritePeerSpeakerId(activeAgent?.agent_id, agentId) || agentId;
@@ -49,6 +51,7 @@ export function TurnProcessBlocks({
   );
   const expert =
     (speakerId && agents.find((item) => item.agent_id === speakerId)) ||
+    (isTeamRoom && teamMembers?.find((item) => item.agent_id === speakerId)) ||
     (!isTeamRoom || hostSpeaker ? activeAgent : undefined);
   const avatarTooltip = hostSpeaker
     ? t("chat.teamHostHover", { name: activeAgent?.name || expert?.name || "" })

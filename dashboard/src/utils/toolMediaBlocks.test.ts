@@ -90,6 +90,14 @@ describe("toMediaPreviewSource", () => {
 });
 
 describe("needsAuthBlobFetch", () => {
+  it.each([
+    "/api/teams/team_1/members/agt_1/avatar",
+    "/api/teams/team_1/members/agt_1/avatar?v=9",
+    "https://octop.example.com/api/teams/team_1/members/agt_1/avatar?v=9",
+  ])("authenticates team member portraits: %s", (url) => {
+    expect(needsAuthBlobFetch(url)).toBe(true);
+  });
+
   it("requires auth for uploaded expert avatars", () => {
     expect(needsAuthBlobFetch("/api/agents/agt_1/avatar")).toBe(true);
     expect(needsAuthBlobFetch("/api/agents/agt_1/avatar?v=9")).toBe(true);

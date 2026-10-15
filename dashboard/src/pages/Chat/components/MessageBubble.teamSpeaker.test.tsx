@@ -63,6 +63,36 @@ function assistant(extra: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe("MessageBubble team speaker chrome", () => {
+  it("uses private member summaries without enabling profile management", () => {
+    render(
+      <ChatAgentProfileProvider
+        canOpen={false}
+        onOpen={vi.fn()}
+        isTeam
+        teamMembers={[
+          {
+            agent_id: "private-member",
+            name: "Private member",
+            icon_url: "/private-member.png",
+          },
+        ]}
+      >
+        <MessageBubble
+          message={assistant({ speakerAgentId: "private-member" })}
+          agentId="host"
+          showAvatar
+          groupPosition="only"
+        />
+      </ChatAgentProfileProvider>,
+    );
+    const avatar = screen.getByLabelText("Private member");
+    expect(avatar.querySelector("img")).toHaveAttribute(
+      "src",
+      "/private-member.png",
+    );
+    expect(screen.queryByRole("button", { name: "Private member" })).toBeNull();
+  });
+
   it("does not print the member name next to the bubble", () => {
     render(
       <MessageBubble
