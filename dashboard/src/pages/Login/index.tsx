@@ -10,7 +10,11 @@ import {
   setAuthToken,
   setRememberLoginPreference,
 } from "../../api";
-import { authApi, type OauthProviderStatus } from "../../api/modules/auth";
+import {
+  authApi,
+  type LdapStatus,
+  type OauthProviderStatus,
+} from "../../api/modules/auth";
 import { apiErrorMessage } from "../../utils/apiError";
 import { refreshServerLabels } from "../../i18n";
 import { applyUserLocale, applyGuestLocale } from "../../utils/locale";
@@ -81,6 +85,7 @@ export default function LoginPage() {
   const [providers, setProviders] = useState<OauthProviderStatus[]>([]);
   const [providerStatusReady, setProviderStatusReady] = useState(false);
   const [loginMode, setLoginMode] = useState("qr");
+  const [ldap, setLdap] = useState<LdapStatus | null>(null);
   const [ssoLoadingKind, setSsoLoadingKind] = useState<string | null>(null);
   const [captchaReady, setCaptchaReady] = useState(false);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
@@ -128,6 +133,12 @@ export default function LoginPage() {
           .catch(() => {
             if (!cancelled) setProviderStatusReady(true);
           });
+        authApi
+          .getLdapStatus()
+          .then((next) => {
+            if (!cancelled) setLdap(next);
+          })
+          .catch(() => {});
         authApi
           .getCaptcha()
           .then((next) => {
@@ -348,6 +359,23 @@ export default function LoginPage() {
               onPressEnter={handleLogin}
               style={{ borderRadius: 10 }}
             />
+            {ldap?.enabled && (
+              <p
+                style={{
+                  margin: 0,
+                  marginTop: -8,
+                  width: "100%",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "var(--fn-text-tertiary)",
+                  textAlign: "center",
+                }}
+              >
+                {t("login.ldapHint", {
+                  name: ldap.display_name.trim() || t("adminSso.ldap.kind"),
+                })}
+              </p>
+            )}
 
             <CaptchaField
               ref={captchaRef}

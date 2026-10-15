@@ -8,6 +8,7 @@ import {
   Check,
   RotateCcw,
   Pencil,
+  Undo2,
   Volume2,
   Settings,
   GitFork,
@@ -29,6 +30,7 @@ import {
   isDataUrl,
   workspacePathFromAccessUrl,
 } from "../../../utils/toolMediaBlocks";
+import { isImeComposing } from "../../../utils/ime";
 import { formatMessageTime } from "../../../utils/formatMessageTime";
 import { copyText } from "../../../utils/copyText";
 import { useServerTimezone } from "../../../hooks/useServerTimezone";
@@ -37,7 +39,6 @@ import { prepareSpeechText } from "../../../utils/plainTextForSpeech";
 import {
   chatStreamErrorAction,
   formatChatStreamError,
-  isChatStreamError,
 } from "../../../utils/chatStreamError";
 import { MessageFileCard } from "./MessageFileCard";
 import AskQuestionCard from "./AskQuestionCard";
@@ -49,10 +50,9 @@ import {
   isTeamAgent,
   isTeamHostSpeaker as isTeamHostSpeakerId,
 } from "../../../utils/teamAgent";
-import {
-  accountDisplayName,
-  accountInitials,
-} from "../utils/accountDisplayName";
+import { rewritePeerSpeakerId } from "../../../utils/remoteExpert";
+import { accountDisplayName } from "../utils/accountDisplayName";
+import { ProfileAvatar } from "../../Admin/Users/ProfileAvatar";
 import {
   extractAskQuestions,
   isAskHitl,
@@ -83,7 +83,10 @@ interface MessageBubbleProps {
   agentId?: string | null;
   composerLookups?: ComposerTagLookups;
   onRegenerate?: (messageId: string) => void;
+  /** Turn off streamed token usage then retry (invalid_request / MindIE). */
+  onDisableStreamUsage?: () => Promise<boolean>;
   onEditUserMessage?: (messageId: string, newText: string) => void;
+  onWithdrawSteer?: (messageId: string) => void;
   onForkAssistantMessage?: (messageId: string) => void;
   forkDisabled?: boolean;
   forkDisabledHint?: string;
@@ -535,7 +538,9 @@ function MessageBubble({
   agentId = null,
   composerLookups,
   onRegenerate,
+  onDisableStreamUsage,
   onEditUserMessage,
+  onWithdrawSteer,
   onForkAssistantMessage,
   forkDisabled,
   forkDisabledHint,
@@ -552,18 +557,24 @@ function MessageBubble({
   const serverTimezone = useServerTimezone();
   const user = useCurrentUser();
   const { agents, activeAgent } = useAgent();
-  const speakerId = message.speakerAgentId || agentId;
+  const isTeamRoom = isTeamAgent(activeAgent);
+  const speakerId =
+    rewritePeerSpeakerId(
+      activeAgent?.agent_id,
+      message.speakerAgentId || agentId,
+    ) ||
+    message.speakerAgentId ||
+    agentId;
+  const isTeamHostSpeaker = isTeamHostSpeakerId(
+    isTeamRoom,
+    speakerId,
+    activeAgent?.agent_id,
+  );
   const expert = useMemo(
     () =>
       (speakerId && agents.find((item) => item.agent_id === speakerId)) ||
-      activeAgent,
-    [speakerId, agents, activeAgent],
-  );
-  const isTeamRoom = isTeamAgent(activeAgent);
-  const isTeamHostSpeaker = isTeamHostSpeakerId(
-    isTeamRoom,
-    message.speakerAgentId,
-    activeAgent?.agent_id,
+      (isTeamHostSpeaker || !isTeamRoom ? activeAgent : undefined),
+    [speakerId, agents, activeAgent, isTeamHostSpeaker, isTeamRoom],
   );
   const avatarTooltip = isTeamHostSpeaker
     ? t("chat.teamHostHover", { name: activeAgent?.name || expert?.name || "" })
@@ -625,9 +636,9 @@ function MessageBubble({
     const actions = message.hitlData.action_requests ?? [];
     const hitlStatus = message.hitlData.status ?? "pending";
     if (isAskHitl(actions)) {
-      // Pending questions are rendered in ChatPage's composer dock so they
-      // stay immediately above the input even when message history scrolls.
-      if (hitlStatus === "pending") return null;
+      // Recoverable pending questions stay in ChatPage's composer dock.
+      // Reconstructed history without pending_id stays in the transcript.
+      if (hitlStatus === "pending" && message.hitlData.pending_id) return null;
       const questions = extractAskQuestions(actions);
       return (
         <div
@@ -636,21 +647,7 @@ function MessageBubble({
           }`}
         >
           <div className={styles.bubbleContent}>
-            <AskQuestionCard
-              questions={questions}
-              status={hitlStatus}
-              onSubmit={
-                onHitlDecision
-                  ? (answer) =>
-                      onHitlDecision(
-                        actions.map(() => ({
-                          type: "respond",
-                          message: answer,
-                        })),
-                      )
-                  : undefined
-              }
-            />
+            <AskQuestionCard questions={questions} status={hitlStatus} />
           </div>
         </div>
       );
@@ -666,6 +663,10 @@ function MessageBubble({
             actions={actions}
             status={hitlStatus}
             resolution={message.hitlData.resolution}
+            pendingId={message.hitlData.pending_id}
+            speakerName={
+              isTeamRoom && !isTeamHostSpeaker ? expert?.name : undefined
+            }
             onDecision={onHitlDecision}
           />
         </div>
@@ -678,13 +679,14 @@ function MessageBubble({
     isUser && !isEditing && hasUserComposerTags(message.composerContext);
   const isStreaming = message.status === "streaming";
   const hasToolData = !!message.toolData;
-  const looksLikeStreamError =
-    !isUser && !hasToolData && !isStreaming && isChatStreamError(textContent);
-  const isError = message.status === "error" || looksLikeStreamError;
-  const errorBodyText = isError
-    ? formatChatStreamError(textContent, t)
+  const isError = message.status === "error";
+  const errorSource = isError
+    ? message.errorInfo?.message?.trim() || textContent
     : textContent;
-  const errorAction = isError ? chatStreamErrorAction(textContent) : null;
+  const errorBodyText = isError
+    ? formatChatStreamError(errorSource, t)
+    : textContent;
+  const errorAction = isError ? chatStreamErrorAction(errorSource) : null;
   const attachments = message.attachments || [];
   const imageAttachments = attachments.filter(
     (attachment) =>
@@ -724,11 +726,18 @@ function MessageBubble({
   const isLastInGroup = groupPosition === "last" || groupPosition === "only";
 
   // For skip-render checks: answer bubble only shows text and attachments.
-  if (!isUser && !textContent && !hasAttachments) {
+  // An error still renders its box when the body is only a title.
+  if (!isUser && !isError && !textContent && !hasAttachments) {
     return null;
   }
 
-  if (!isUser && !hasAttachments && textContent && !textContent.trim()) {
+  if (
+    !isUser &&
+    !isError &&
+    !hasAttachments &&
+    textContent &&
+    !textContent.trim()
+  ) {
     return null;
   }
 
@@ -751,17 +760,20 @@ function MessageBubble({
     <MessageSender
       name={userName}
       avatar={
-        <span className={styles.msgUserAvatar}>
-          {accountInitials(userName)}
-        </span>
+        <ProfileAvatar
+          url={user?.avatar_url}
+          icon={user?.avatar_icon}
+          kind="user"
+          className={styles.msgUserAvatar}
+        />
       }
     />
-  ) : expert ? (
+  ) : expert || avatarProfileId ? (
     <ExpertMessageAvatar
-      name={expert.name}
-      color={expert.color}
-      iconName={expert.icon_name}
-      iconUrl={expert.icon_url}
+      name={expert?.name || avatarProfileId}
+      color={expert?.color}
+      iconName={expert?.icon_name}
+      iconUrl={expert?.icon_url}
       tooltip={avatarTooltip}
       profileAgentId={avatarProfileId}
     />
@@ -798,6 +810,7 @@ function MessageBubble({
                     autoFocus
                     rows={4}
                     onKeyDown={(e) => {
+                      if (isImeComposing(e)) return;
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         handleEditSubmit();
@@ -892,7 +905,21 @@ function MessageBubble({
                 )}
                 {(errorAction || onRegenerate) && (
                   <div className={styles.errorActionRow}>
-                    {errorAction && (
+                    {errorAction?.fix === "disable_stream_usage" &&
+                    onDisableStreamUsage ? (
+                      <button
+                        className={styles.errorRetryBtn}
+                        onClick={() => {
+                          void onDisableStreamUsage().then((ok) => {
+                            if (ok) onRegenerate?.(message.id);
+                          });
+                        }}
+                        type="button"
+                      >
+                        <RotateCcw size={13} />
+                        {t(errorAction.labelKey)}
+                      </button>
+                    ) : errorAction ? (
                       <button
                         className={styles.errorConfigBtn}
                         onClick={() => navigate(errorAction.path)}
@@ -901,7 +928,7 @@ function MessageBubble({
                         <Settings size={13} />
                         {t(errorAction.labelKey)}
                       </button>
-                    )}
+                    ) : null}
                     {onRegenerate && (
                       <button
                         className={styles.errorRetryBtn}
@@ -976,7 +1003,9 @@ function MessageBubble({
             usageParts.length > 0 ||
             (isUser &&
               !isEditing &&
-              Boolean(message.content || onEditUserMessage))) && (
+              Boolean(
+                message.content || onEditUserMessage || message.steerPending,
+              ))) && (
             <div
               className={`${styles.msgMetaRow} ${
                 isUser ? styles.msgMetaRowRight : ""
@@ -984,10 +1013,23 @@ function MessageBubble({
             >
               {isUser &&
                 !isEditing &&
-                (message.content || onEditUserMessage) && (
+                (message.content ||
+                  onEditUserMessage ||
+                  message.steerPending) && (
                   <div className={styles.userMsgActions} role="group">
                     {message.content ? (
                       <CopyButton text={message.content} />
+                    ) : null}
+                    {onWithdrawSteer && message.steerPending ? (
+                      <button
+                        className={styles.msgActionBtn}
+                        onClick={() => onWithdrawSteer(message.id)}
+                        title={t("chat.steer.withdraw")}
+                        type="button"
+                        aria-label={t("chat.steer.withdraw")}
+                      >
+                        <Undo2 size={14} />
+                      </button>
                     ) : null}
                     {onEditUserMessage ? (
                       <button

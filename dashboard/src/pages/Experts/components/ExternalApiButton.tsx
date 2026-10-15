@@ -4,10 +4,11 @@ import { Tooltip } from "antd";
 import { Plug } from "lucide-react";
 import type { OctopAgent } from "../../../context/AgentContext";
 import ExternalApiDrawer from "./ExternalApiDrawer";
+import { isBridgeAgentId } from "../../../utils/remoteExpert";
 import styles from "../index.module.less";
 
 export interface ExternalApiButtonProps {
-  agent: Pick<OctopAgent, "agent_id" | "name" | "is_owner">;
+  agent: Pick<OctopAgent, "agent_id" | "name" | "is_owner" | "bridge">;
   buttonClassName?: string;
 }
 
@@ -17,7 +18,12 @@ export default function ExternalApiButton({
 }: ExternalApiButtonProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  if (agent.is_owner === false) return null;
+  if (
+    agent.is_owner === false ||
+    agent.bridge ||
+    isBridgeAgentId(agent.agent_id)
+  )
+    return null;
 
   return (
     <>

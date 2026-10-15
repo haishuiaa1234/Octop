@@ -13,6 +13,7 @@ import type { WWLoginOptions } from "@wecom/jssdk";
 const mocks = vi.hoisted(() => ({
   getAuthStatus: vi.fn(),
   getOauthStatus: vi.fn(),
+  getLdapStatus: vi.fn(),
   startOauth: vi.fn(),
   openSsoPopup: vi.fn(),
   createWWLoginPanel: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock("../../api/modules/auth", () => ({
   authApi: {
     getAuthStatus: mocks.getAuthStatus,
     getOauthStatus: mocks.getOauthStatus,
+    getLdapStatus: mocks.getLdapStatus,
     startOauth: mocks.startOauth,
     getCaptcha: () => Promise.resolve({ provider: "none" }),
   },
@@ -81,6 +83,7 @@ function renderLogin() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getAuthStatus.mockResolvedValue({ setup_required: false });
+  mocks.getLdapStatus.mockResolvedValue({ enabled: false, display_name: "" });
   mocks.getOauthStatus.mockResolvedValue({
     providers: [{ kind: "wecom", display_name: "WeCom", enabled: true }],
   });
@@ -98,6 +101,19 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Login inline WeCom QR", () => {
+  it("keeps LDAP account login available alongside inline WeCom QR", async () => {
+    mocks.getLdapStatus.mockResolvedValue({
+      enabled: true,
+      display_name: "Corporate LDAP",
+    });
+    renderLogin();
+    expect(await screen.findByTitle("login.wecomQr")).toBeInTheDocument();
+    expect(screen.queryByText("login.ldapHint")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "login.accountLogin" }));
+    expect(await screen.findByText("login.ldapHint")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("login.password")).toBeInTheDocument();
+  });
+
   it("does not flash the account form while detecting login providers", async () => {
     let resolve!: (value: { providers: unknown[] }) => void;
     mocks.getOauthStatus.mockReturnValue(

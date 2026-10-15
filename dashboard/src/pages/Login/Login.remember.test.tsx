@@ -10,6 +10,7 @@ vi.mock("../../api/modules/auth", () => ({
   authApi: {
     getAuthStatus: () => Promise.resolve({ setup_required: false }),
     getOauthStatus: () => Promise.resolve({ providers: [] }),
+    getLdapStatus: () => Promise.resolve({ enabled: false, display_name: "" }),
     getCaptcha: () => Promise.resolve({ provider: "none" }),
   },
 }));
@@ -26,7 +27,7 @@ vi.mock("./CaptchaField", () => ({
 import LoginPage from "./index";
 
 describe("Login remember-me checkbox", () => {
-  it("renders checked by default", () => {
+  it("renders checked by default", async () => {
     render(
       <MemoryRouter>
         <LoginPage />
@@ -37,5 +38,15 @@ describe("Login remember-me checkbox", () => {
       name: /login\.remember|记住登录状态|Remember me/,
     });
     expect(checkbox).toBeChecked();
+    expect(
+      await screen.findByPlaceholderText(
+        /login\.username|用户名或邮箱|username or email/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /login\.usernameHint|可用安装时设置|set during setup/i,
+      ),
+    ).not.toBeInTheDocument();
   });
 });

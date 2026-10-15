@@ -17,6 +17,9 @@ vi.mock("../../../hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({
     recording: false,
     transcribing: false,
+    realtime: false,
+    start: vi.fn(),
+    stop: vi.fn(),
     toggle: vi.fn(),
   }),
 }));
@@ -36,7 +39,9 @@ vi.mock("../hooks/useChatAttachments", () => ({
     uploading: false,
     dragOver: false,
     fileInputRef: { current: null },
+    folderInputRef: { current: null },
     handleFileSelect: vi.fn(),
+    handleFolderSelect: vi.fn(),
     handleFileChange: vi.fn(),
     removeAttachment: vi.fn(),
     clearAttachments: vi.fn(),
@@ -51,6 +56,7 @@ vi.mock("../hooks/useChatAttachments", () => ({
 
 vi.mock("../hooks/chatStore", () => ({
   consumePendingPrefillAttachments: () => [],
+  onSteerRestore: () => () => {},
   readInputDraft: (agentId: string) =>
     agentId === "agent-2" ? "target expert draft" : "",
   writeInputDraft: vi.fn(),
@@ -227,37 +233,43 @@ describe("ChatInput prefill clear-on-send", () => {
     expect(actionGroup.querySelectorAll("button")).toHaveLength(2);
   });
 
-  it("queues an immediate action during streaming without replacing the draft", () => {
-    const onSend = vi.fn();
-    const onQueue = vi.fn(() => "ok" as const);
-    render(
-      <ChatInput
-        onSend={onSend}
-        onQueue={onQueue}
-        onCancel={vi.fn()}
-        onNewChat={vi.fn()}
-        isStreaming
-        agentId="agent-1"
-        composerActions={[
-          {
-            title: "Queue summary",
-            prompt: "Summarize the report",
-            behavior: "send",
-          },
-        ]}
-      />,
-    );
+  it.each([
+    { isStreaming: true, holdSend: false, isTeam: false },
+    { isStreaming: false, holdSend: true, isTeam: true },
+  ])(
+    "queues an immediate action without replacing the draft: %j",
+    (streamState) => {
+      const onSend = vi.fn();
+      const onQueue = vi.fn(() => "ok" as const);
+      render(
+        <ChatInput
+          onSend={onSend}
+          onQueue={onQueue}
+          onCancel={vi.fn()}
+          onNewChat={vi.fn()}
+          {...streamState}
+          agentId="agent-1"
+          composerActions={[
+            {
+              title: "Queue summary",
+              prompt: "Summarize the report",
+              behavior: "send",
+            },
+          ]}
+        />,
+      );
 
-    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "unfinished draft" } });
-    fireEvent.click(screen.getByRole("button", { name: "Queue summary" }));
+      const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+      fireEvent.change(textarea, { target: { value: "unfinished draft" } });
+      fireEvent.click(screen.getByRole("button", { name: "Queue summary" }));
 
-    expect(onQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "Summarize the report" }),
-    );
-    expect(onSend).not.toHaveBeenCalled();
-    expect(textarea.value).toBe("unfinished draft");
-  });
+      expect(onQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "Summarize the report" }),
+      );
+      expect(onSend).not.toHaveBeenCalled();
+      expect(textarea.value).toBe("unfinished draft");
+    },
+  );
 
   it("does not restore stale initialText after send (skill-card prefill path)", async () => {
     // Mirrors welcome skill/quick-card flow:

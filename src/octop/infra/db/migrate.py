@@ -147,9 +147,32 @@ def _ensure_agent_profile_columns(db: DatabasePool) -> None:
     _collapse_legacy_agent_welcome_columns(db)
 
 
+def _rename_legacy_cron_schedule_column(db: DatabasePool) -> None:
+    """Rename pre-squash ``cron_jobs.trigger`` to ``schedule_spec``.
+
+    Current inserts and reads use ``schedule_spec``. Databases created before
+    that rename kept the old column, so cron creation failed with
+    "no column named schedule_spec" even after later columns were added.
+    """
+    cols = _table_columns(db, "cron_jobs")
+    if "trigger" not in cols:
+        return
+    if "schedule_spec" not in cols:
+        with db.connect() as conn:
+            conn.execute('ALTER TABLE cron_jobs RENAME COLUMN "trigger" TO schedule_spec')
+        return
+    with db.connect() as conn:
+        conn.execute(
+            'UPDATE cron_jobs SET schedule_spec = "trigger" '
+            "WHERE schedule_spec IS NULL OR schedule_spec = ''"
+        )
+    _drop_column(db, "cron_jobs", "trigger")
+
+
 def _ensure_cron_jobs_schema(db: DatabasePool) -> None:
     if not _table_exists(db, "cron_jobs"):
         return
+    _rename_legacy_cron_schedule_column(db)
     _ensure_column(db, "cron_jobs", "name", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(
         db,
@@ -1558,6 +1581,71 @@ def _ensure_thread_conversation_mode_schema(db: DatabasePool) -> None:
     _ensure_column(db, "threads", "hitl_policy", "TEXT")
 
 
+def _ensure_skill_copy_policy_schema(db: DatabasePool) -> None:
+    if not _table_exists(db, "skill_packages"):
+        return
+    _ensure_column(db, "skill_packages", "copy_policy", "TEXT NOT NULL DEFAULT 'snapshot'")
+
+
+def _ensure_bridge_connections_schema(db: DatabasePool) -> None:
+    """Fold notes + unique display_name + auto_reconnect into unreleased v19."""
+    if not _table_exists(db, "bridge_connections"):
+        if _current_version(db) < 19 or not _table_exists(db, "users"):
+            return
+        # Fork builds used v19 for expert API settings, skipping upstream's table.
+        # Apply the canonical DDL atomically without lowering the version watermark.
+        version = _current_version(db)
+        suffix = ".pg.sql" if db.dialect == "postgresql" else ".sql"
+        sql = (_MIGRATIONS_DIR / f"019_bridge_connections{suffix}").read_text(encoding="utf-8")
+        with db.transaction() as conn:
+            for statement in _split_pg_sql(sql):
+                conn.execute(statement)
+            conn.execute("UPDATE _schema_version SET version = ?", (version,))
+    _ensure_column(db, "bridge_connections", "notes", "TEXT")
+    _ensure_column(db, "bridge_connections", "icon_name", "TEXT")
+    _ensure_column(db, "bridge_connections", "auto_reconnect", "INTEGER NOT NULL DEFAULT 1")
+    _ensure_column(db, "bridge_connections", "peer_client_host", "TEXT")
+    # Make every (owner, display_name) unique before creating the index.
+    # Empty names are filled from peer username / URL; colliding names get a suffix.
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT id, owner_user_id, peer_base_url, peer_username, display_name "
+            "FROM bridge_connections ORDER BY id ASC"
+        ).fetchall()
+    used: dict[int, set[str]] = {}
+    updates: list[tuple[str, int]] = []
+    for row in rows:
+        owner = int(row["owner_user_id"])
+        used.setdefault(owner, set())
+        current = str(row["display_name"] or "").strip()
+        base = (
+            current
+            or str(row["peer_username"] or "").strip()
+            or str(row["peer_base_url"] or "").strip()
+            or f"bridge-{row['id']}"
+        )
+        candidate = base
+        n = 2
+        while candidate in used[owner]:
+            candidate = f"{base} ({n})"
+            n += 1
+        used[owner].add(candidate)
+        if candidate != str(row["display_name"] or ""):
+            updates.append((candidate, int(row["id"])))
+    if updates:
+        with db.transaction() as conn:
+            for name, row_id in updates:
+                conn.execute(
+                    "UPDATE bridge_connections SET display_name = ? WHERE id = ?",
+                    (name, row_id),
+                )
+    with db.connect() as conn:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_bridge_connections_owner_display "
+            "ON bridge_connections(owner_user_id, display_name)"
+        )
+
+
 def _repair_legacy_schema(db: DatabasePool) -> None:
     """Idempotent compatibility repairs for local databases from old builds."""
     if _table_exists(db, "users"):
@@ -1844,7 +1932,12 @@ def _apply_sqlite_migration(db: DatabasePool, version: int, path: Path) -> None:
         with db.connect() as conn:
             conn.execute("UPDATE _schema_version SET version = ?", (version,))
         return
-    if version == 19:
+    if version == 20:
+        _ensure_skill_copy_policy_schema(db)
+        with db.connect() as conn:
+            conn.execute("UPDATE _schema_version SET version = ?", (version,))
+        return
+    if version == 21:
         if _table_exists(db, "agents"):
             _ensure_column(db, "agents", "external_api_json", "TEXT")
         with db.connect() as conn:
@@ -1853,6 +1946,88 @@ def _apply_sqlite_migration(db: DatabasePool, version: int, path: Path) -> None:
     sql = path.read_text(encoding="utf-8")
     with db.connect() as conn:
         conn.executescript(sql)
+
+
+_NAV_PAGE_PERMISSIONS = ("experts", "tasks", "token_usage")
+_NAV_PAGE_PERMISSIONS_FLAG = "granted_nav_page_permissions"
+
+
+def _parse_perm_list(raw: Any) -> list[str] | None:
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    return None
+
+
+def _grant_default_nav_permissions(db: DatabasePool) -> None:
+    """Grant experts/tasks/token usage once to accounts that already had them open.
+
+    Later removals stick: the settings flag stops this from running again.
+    Admins are skipped; an empty permission list means "all" for that role.
+    """
+    if not _table_exists(db, "settings"):
+        return
+    with db.connect() as conn:
+        flag = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (_NAV_PAGE_PERMISSIONS_FLAG,),
+        ).fetchone()
+    if flag is not None:
+        return
+
+    def grant(table: str, id_col: str, skip_where: str) -> None:
+        if not _table_exists(db, table):
+            return
+        with db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT {id_col}, permissions FROM {table} WHERE {skip_where}"
+            ).fetchall()
+        updates: list[tuple[str, object]] = []
+        for row in rows:
+            current = _parse_perm_list(row[1])
+            if current is None:
+                continue
+            merged = list(current)
+            changed = False
+            for key in _NAV_PAGE_PERMISSIONS:
+                if key not in merged:
+                    merged.append(key)
+                    changed = True
+            if changed:
+                updates.append((json.dumps(merged, ensure_ascii=False), row[0]))
+        if not updates:
+            return
+        with db.transaction() as conn:
+            for payload, pk in updates:
+                conn.execute(
+                    f"UPDATE {table} SET permissions = ? WHERE {id_col} = ?",
+                    (payload, pk),
+                )
+
+    grant("users", "id", "role <> 'admin'")
+    grant("user_role", "id", "user_role_id <> 'admin'")
+    with db.transaction() as conn:
+        if db.dialect == "postgresql":
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING",
+                (_NAV_PAGE_PERMISSIONS_FLAG, "1"),
+            )
+        else:
+            conn.execute(
+                "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
+                (_NAV_PAGE_PERMISSIONS_FLAG, "1"),
+            )
 
 
 def run_migrations(db: DatabasePool) -> None:
@@ -1906,3 +2081,5 @@ def run_migrations(db: DatabasePool) -> None:
     _ensure_agent_profile_columns(db)
     _ensure_sso_provider_kind_schema(db)
     _ensure_user_role_schema(db)
+    _ensure_bridge_connections_schema(db)
+    _grant_default_nav_permissions(db)

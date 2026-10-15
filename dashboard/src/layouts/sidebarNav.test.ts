@@ -15,6 +15,29 @@ const adminUser = {
 } as OctopUser;
 
 describe("sidebarNav", () => {
+  it("preserves main_gys navigation without the removed launcher", () => {
+    const items = buildNavSections(adminUser)[0].items;
+    expect(items.map((item) => item.key)).toEqual([
+      "chat",
+      "experts",
+      "tasks",
+      "token-usage",
+    ]);
+    expect(items.some((item) => item.key === "open-chatgpt")).toBe(false);
+  });
+
+  it("preserves upstream permission gates", () => {
+    const user = { ...adminUser, role: "user", permissions: [] };
+    expect(buildNavSections(user)[0].items.map((item) => item.key)).toEqual([
+      "chat",
+    ]);
+    expect(
+      buildNavSections({ ...user, permissions: ["tasks"] })[0].items.map(
+        (item) => item.key,
+      ),
+    ).toEqual(["chat", "tasks"]);
+  });
+
   it("marks catalog keys as grouped", () => {
     for (const key of SIDEBAR_GROUPED_NAV_KEYS) {
       expect(isGroupedNavKey(key)).toBe(true);

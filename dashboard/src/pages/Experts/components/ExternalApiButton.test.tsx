@@ -69,6 +69,12 @@ describe("ExternalApiButton", () => {
     expect(externalApi.getConfig).not.toHaveBeenCalled();
   });
 
+  it("does not expose local API management for remote experts", () => {
+    render(<ExternalApiButton agent={{ ...expert, bridge: true }} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(externalApi.getConfig).not.toHaveBeenCalled();
+  });
+
   it("ignores a late settings response from a previously selected expert", async () => {
     let finishFirst!: (value: typeof enabled) => void;
     vi.mocked(externalApi.getConfig)

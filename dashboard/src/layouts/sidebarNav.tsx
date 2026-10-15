@@ -11,6 +11,7 @@ import {
   Users as UsersIcon,
   Activity,
   Share2,
+  Cloudy,
   Sparkles,
   Puzzle,
   Package,
@@ -59,6 +60,7 @@ export const SIDEBAR_NAV_KEYS = [
   "connectors",
   "skill-packages",
   "knowledge-bases",
+  "bridge",
   "workbench",
   "remote-desktop",
   "acp",
@@ -112,6 +114,7 @@ export const SIDEBAR_GROUPED_NAV_KEYS = [
   "connectors",
   "skill-packages",
   "knowledge-bases",
+  "bridge",
   "workbench",
   "remote-desktop",
   "acp",
@@ -134,36 +137,39 @@ export function buildNavSections(
   user: OctopUser | null,
   opts?: { mobileEnabled?: boolean },
 ): NavSection[] {
-  const sections: NavSection[] = [
+  const topItems: NavItem[] = [
     {
-      items: [
-        {
-          key: "chat",
-          path: "/chat",
-          icon: <MessageSquareText size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.chat",
-        },
-        {
-          key: "experts",
-          path: "/experts",
-          icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.experts",
-        },
-        {
-          key: "tasks",
-          path: "/tasks",
-          icon: <Timer size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.tasks",
-        },
-        {
-          key: "token-usage",
-          path: "/token-usage",
-          icon: <Activity size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.tokenUsage",
-        },
-      ],
+      key: "chat",
+      path: "/chat",
+      icon: <MessageSquareText size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.chat",
     },
   ];
+  if (navAllowed(user, "experts")) {
+    topItems.push({
+      key: "experts",
+      path: "/experts",
+      icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.experts",
+    });
+  }
+  if (navAllowed(user, "tasks")) {
+    topItems.push({
+      key: "tasks",
+      path: "/tasks",
+      icon: <Timer size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.tasks",
+    });
+  }
+  if (navAllowed(user, "token-usage")) {
+    topItems.push({
+      key: "token-usage",
+      path: "/token-usage",
+      icon: <Activity size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.tokenUsage",
+    });
+  }
+  const sections: NavSection[] = [{ items: topItems }];
 
   const settingsItems: NavItem[] = [
     {
@@ -205,6 +211,14 @@ export function buildNavSections(
       labelKey: "nav.knowledgeBases",
     });
   }
+  // User-scoped remote Octop links — always available (like personalization).
+  settingsItems.push({
+    key: "bridge",
+    path: "/bridge",
+    icon: <Cloudy size={iconSize} strokeWidth={iconStroke} />,
+    labelKey: "nav.bridge",
+    badge: "Beta",
+  });
   if (settingsItems.length > 0) {
     sections.push({
       id: "settings",
