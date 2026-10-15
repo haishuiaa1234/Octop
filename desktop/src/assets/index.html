@@ -336,19 +336,10 @@
       }
       .loading img {
         width: 120px;
-        aspect-ratio: 1;
-        height: auto;
+        height: 120px;
         object-fit: contain;
         background: transparent;
-        cursor: pointer;
         user-select: none;
-        transition: transform 0.18s ease;
-      }
-      .loading img:hover {
-        transform: scale(1.04) translateY(-2px);
-      }
-      .loading img:active {
-        transform: scale(0.94);
       }
       .loading-brand {
         margin: 0;
@@ -487,8 +478,9 @@
       <div class="loading-card">
         <img
           id="mascot"
-          src="/octop-mascot-peek.webp"
-          alt="Octop"
+          src="/shixiaohe-mascot.png"
+          alt=""
+          aria-hidden="true"
           draggable="false"
         />
         <p class="loading-brand" id="loading-brand">Octop</p>
@@ -664,26 +656,6 @@
       async function call(name, ...args) {
         return Call.ByName("main.App." + name, ...args);
       }
-
-      const MASCOT_IMAGES = [
-        "/octop-mascot-peek.webp",
-        "/octop-mascot-type.webp",
-      ];
-      const mascotEl = document.getElementById("mascot");
-      let mascotSrc = MASCOT_IMAGES[0];
-      function pickMascot(current) {
-        let next = current;
-        while (next === current) {
-          next = MASCOT_IMAGES[Math.floor(Math.random() * MASCOT_IMAGES.length)];
-        }
-        return next;
-      }
-      mascotSrc = pickMascot(mascotSrc);
-      mascotEl.src = mascotSrc;
-      mascotEl.addEventListener("click", () => {
-        mascotSrc = pickMascot(mascotSrc);
-        mascotEl.src = mascotSrc;
-      });
 
       function current() {
         return {
