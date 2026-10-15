@@ -1,0 +1,29 @@
+.page {
+  padding: max(24px, env(safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+}
+
+.card {
+  padding: 48px 32px 40px;
+  border: 1px solid var(--fn-border-primary);
+}
+
+@media (max-width: 430px) {
+  .wecomPage .card {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 374px) {
+  .wecomPage {
+    padding-inline: max(0px, env(safe-area-inset-left, 0px))
+      max(0px, env(safe-area-inset-right, 0px));
+  }
+
+  .wecomPage .card {
+    padding-inline: 0;
+    border-inline-width: 0;
+  }
+}

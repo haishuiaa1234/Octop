@@ -29,6 +29,7 @@ import CaptchaField, { type CaptchaFieldHandle } from "./CaptchaField";
 import ForgotPasswordModal from "./ForgotPasswordModal";
 import { type PublicCaptchaConfig } from "./captchaAdapters";
 import WecomQrLogin from "./WecomQrLogin";
+import styles from "./Login.module.less";
 
 function providerLabel(
   provider: OauthProviderStatus,
@@ -247,27 +248,25 @@ export default function LoginPage() {
 
   return (
     <div
+      className={`${styles.page} ${showQr ? styles.wecomPage : ""}`}
       style={{
         minHeight: "100dvh",
         boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding:
-          "max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px))",
         background: "var(--fn-bg-layout)",
         transition: "background var(--fn-transition)",
       }}
     >
       <div
+        className={styles.card}
         style={{
           width: "100%",
           maxWidth: hasWecom ? 396 : 360,
-          padding: "48px 32px 40px",
           background: "var(--fn-bg-elevated)",
           borderRadius: 16,
           boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-          border: "1px solid var(--fn-border-primary)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

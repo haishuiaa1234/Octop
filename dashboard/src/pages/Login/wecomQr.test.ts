@@ -12,48 +12,58 @@ const authorizationUrl = `https://login.work.weixin.qq.com/wwlogin/sso/login?${n
   },
 )}`;
 
-describe("WeCom QR URL and callback contract", () => {
-  it("uses the official QR-only iframe with the server callback and state", () => {
+describe("WeCom official login panel contract", () => {
+  it("passes the server configuration to the full login panel, not the old QR endpoint", () => {
     const login = createWecomQrLogin(authorizationUrl, "en-US");
-    const url = new URL(login.src);
-    expect(url.origin).toBe("https://open.work.weixin.qq.com");
-    expect(url.pathname).toBe("/wwopen/sso/qrConnect");
-    expect(url.searchParams.get("login_type")).toBe("jssdk");
-    expect(url.searchParams.get("version")).toBe("1.2.4");
-    expect(url.searchParams.get("lang")).toBe("en");
-    expect(url.searchParams.get("redirect_uri")).toBe(redirectUri);
-    expect(login.state).toBe("server-state");
-  });
-
-  it("only accepts the expected callback with its original state", () => {
-    const login = createWecomQrLogin(authorizationUrl, "zh");
-    const callback = `${redirectUri}?code=wecom-code&state=server-state`;
-    expect(wecomQrCallback(callback, login)).toBe(callback);
-    expect(wecomQrCallback(`${redirectUri}?state=server-state`, login)).toBe(
-      `${redirectUri}?state=server-state`,
+    expect(login.params).toEqual({
+      login_type: "CorpApp",
+      appid: "corp",
+      agentid: "100001",
+      redirect_uri: redirectUri,
+      state: "server-state",
+      redirect_type: "callback",
+      panel_size: "small",
+      lang: "en",
+    });
+    expect(createWecomQrLogin(authorizationUrl, "zh-CN").params.lang).toBe(
+      "zh",
     );
   });
 
-  it.each([
-    "https://evil.example/api/auth/oauth/callback?code=x&state=server-state",
-    "https://workspace.example/other?code=x&state=server-state",
-    `${redirectUri}?code=x&state=other-state`,
-    `${redirectUri}?code=x`,
-    `https://user:pass@workspace.example/api/auth/oauth/callback?state=server-state`,
-    "javascript:alert(1)",
-    "not a url",
-    { code: "x", state: "server-state" },
-  ])("rejects an unrelated or invalid callback: %s", (payload) => {
-    expect(
-      wecomQrCallback(payload, createWecomQrLogin(authorizationUrl, "zh")),
-    ).toBeNull();
+  it("returns the SDK code to the original backend callback with the server state", () => {
+    const login = createWecomQrLogin(authorizationUrl, "zh");
+    const callback = new URL(wecomQrCallback("wecom-code&state=evil", login)!);
+    expect(callback.origin + callback.pathname).toBe(redirectUri);
+    expect(callback.searchParams.get("code")).toBe("wecom-code&state=evil");
+    expect(callback.searchParams.getAll("state")).toEqual(["server-state"]);
   });
+
+  it.each(["", null, undefined, {}, 1])(
+    "rejects an invalid SDK code: %s",
+    (payload) => {
+      expect(
+        wecomQrCallback(payload, createWecomQrLogin(authorizationUrl, "zh")),
+      ).toBeNull();
+    },
+  );
 
   it.each([
     authorizationUrl.replace("login.work.weixin.qq.com", "evil.example"),
+    authorizationUrl.replace("/wwlogin/sso/login", "/other"),
     authorizationUrl.replace("state=server-state", "state="),
     authorizationUrl.replace("agentid=100001", "agentid="),
+    authorizationUrl.replace("CorpApp", "ServiceApp"),
   ])("rejects invalid authorization configuration", (url) => {
     expect(() => createWecomQrLogin(url, "zh")).toThrow();
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "https://user:pass@workspace.example/callback",
+    `${redirectUri}#fragment`,
+  ])("rejects an unsafe configured callback: %s", (redirect) => {
+    const url = new URL(authorizationUrl);
+    url.searchParams.set("redirect_uri", redirect);
+    expect(() => createWecomQrLogin(url.href, "zh")).toThrow();
   });
 });

@@ -1,7 +1,13 @@
-export const WECOM_QR_ORIGIN = "https://open.work.weixin.qq.com";
+import {
+  WWLoginLangType,
+  WWLoginPanelSizeType,
+  WWLoginRedirectType,
+  WWLoginType,
+  type WWLoginParams,
+} from "@wecom/jssdk";
 
 export interface WecomQrLogin {
-  src: string;
+  params: WWLoginParams;
   redirectUri: string;
   state: string;
 }
@@ -27,40 +33,38 @@ export function createWecomQrLogin(
   ) {
     throw new Error("Invalid WeCom authorization URL");
   }
-  const qr = new URL("/wwopen/sso/qrConnect", WECOM_QR_ORIGIN);
-  qr.search = new URLSearchParams({
-    login_type: "jssdk",
-    appid,
-    agentid,
-    redirect_uri: redirectUri,
+  const callback = new URL(redirectUri);
+  if (
+    !["https:", "http:"].includes(callback.protocol) ||
+    callback.username ||
+    callback.password ||
+    callback.hash
+  ) {
+    throw new Error("Invalid WeCom callback URL");
+  }
+  return {
+    params: {
+      login_type: WWLoginType.corpApp,
+      appid,
+      agentid,
+      redirect_uri: redirectUri,
+      state,
+      redirect_type: WWLoginRedirectType.callback,
+      panel_size: WWLoginPanelSizeType.small,
+      lang: language.startsWith("zh") ? WWLoginLangType.zh : WWLoginLangType.en,
+    },
+    redirectUri,
     state,
-    lang: language.startsWith("zh") ? "zh" : "en",
-    version: "1.2.4",
-  }).toString();
-  return { src: qr.href, redirectUri, state };
+  };
 }
 
 export function wecomQrCallback(
-  payload: unknown,
+  code: unknown,
   login: WecomQrLogin,
 ): string | null {
-  if (typeof payload !== "string") return null;
-  try {
-    const callback = new URL(payload);
-    const expected = new URL(login.redirectUri);
-    if (
-      !["https:", "http:"].includes(callback.protocol) ||
-      callback.origin !== expected.origin ||
-      callback.pathname !== expected.pathname ||
-      callback.username ||
-      callback.password ||
-      callback.hash ||
-      callback.searchParams.get("state") !== login.state
-    ) {
-      return null;
-    }
-    return callback.href;
-  } catch {
-    return null;
-  }
+  if (typeof code !== "string" || !code) return null;
+  const callback = new URL(login.redirectUri);
+  callback.searchParams.set("code", code);
+  callback.searchParams.set("state", login.state);
+  return callback.href;
 }

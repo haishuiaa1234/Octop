@@ -8,12 +8,19 @@ import {
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WWLoginOptions } from "@wecom/jssdk";
 
 const mocks = vi.hoisted(() => ({
   getAuthStatus: vi.fn(),
   getOauthStatus: vi.fn(),
   startOauth: vi.fn(),
   openSsoPopup: vi.fn(),
+  createWWLoginPanel: vi.fn(),
+}));
+
+vi.mock("@wecom/jssdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@wecom/jssdk")>()),
+  createWWLoginPanel: mocks.createWWLoginPanel,
 }));
 
 vi.mock("../../context/ThemeContext", () => ({
@@ -80,6 +87,12 @@ beforeEach(() => {
   mocks.startOauth.mockResolvedValue({
     authorization_url: authorizationUrl("state-one"),
   });
+  mocks.createWWLoginPanel.mockImplementation(({ el }: WWLoginOptions) => {
+    const frame = document.createElement("iframe");
+    frame.title = "login.wecomQr";
+    (el as Element).append(frame);
+    return { el: frame, unmount: vi.fn(() => frame.remove()) };
+  });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -99,20 +112,27 @@ describe("Login inline WeCom QR", () => {
     expect(screen.getByPlaceholderText("login.username")).toBeInTheDocument();
   });
 
-  it("defaults to an inline QR without opening a popup or showing account fields", async () => {
+  it("defaults to the official inline panel without opening a popup or showing account fields", async () => {
     renderLogin();
 
-    const frame = await screen.findByTitle("login.wecomQr");
-    const src = new URL(frame.getAttribute("src")!);
-    expect(src.origin).toBe("https://open.work.weixin.qq.com");
-    expect(src.pathname).toBe("/wwopen/sso/qrConnect");
-    expect(src.searchParams.get("appid")).toBe("test-corp");
-    expect(src.searchParams.get("agentid")).toBe("1000001");
-    expect(src.searchParams.get("state")).toBe("state-one");
-    expect(src.searchParams.get("redirect_uri")).toBe(
-      "https://workspace.example/api/auth/oauth/callback",
+    await waitFor(() =>
+      expect(mocks.createWWLoginPanel).toHaveBeenCalledOnce(),
     );
-    expect(src.searchParams.get("lang")).toBe("zh");
+    expect(mocks.createWWLoginPanel.mock.calls[0][0]).toEqual({
+      el: expect.any(HTMLElement),
+      params: {
+        login_type: "CorpApp",
+        appid: "test-corp",
+        agentid: "1000001",
+        state: "state-one",
+        redirect_uri: "https://workspace.example/api/auth/oauth/callback",
+        lang: "zh",
+        panel_size: "small",
+        redirect_type: "callback",
+      },
+      onLoginSuccess: expect.any(Function),
+      onLoginFail: expect.any(Function),
+    });
     expect(screen.getByRole("tab", { name: "login.qrLogin" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -157,66 +177,88 @@ describe("Login inline WeCom QR", () => {
     const user = userEvent.setup();
     renderLogin();
     fireEvent.load(await screen.findByTitle("login.wecomQr"));
+    const oldPanel = mocks.createWWLoginPanel.mock.results[0].value;
 
     mocks.startOauth.mockResolvedValue({
       authorization_url: authorizationUrl("state-two"),
     });
     await user.click(screen.getByRole("button", { name: "login.refreshQr" }));
     await waitFor(() => {
-      const frame = screen.getByTitle("login.wecomQr");
-      expect(
-        new URL(frame.getAttribute("src")!).searchParams.get("state"),
-      ).toBe("state-two");
+      expect(mocks.createWWLoginPanel).toHaveBeenCalledTimes(2);
     });
+    expect(mocks.createWWLoginPanel.mock.calls[1][0].params.state).toBe(
+      "state-two",
+    );
+    expect(oldPanel.unmount).toHaveBeenCalledOnce();
     expect(mocks.startOauth).toHaveBeenCalledTimes(2);
     expect(mocks.openSsoPopup).not.toHaveBeenCalled();
   });
 
-  it("requests the official iframe postMessage handshake after loading", async () => {
+  it("unmounts the SDK panel and ignores callbacks from a previous refresh", async () => {
+    const validate = vi.spyOn(wecomQr, "wecomQrCallback").mockReturnValue(null);
+    const user = userEvent.setup();
     renderLogin();
-    const frame = (await screen.findByTitle(
-      "login.wecomQr",
-    )) as HTMLIFrameElement;
-    const postMessage = vi.spyOn(frame.contentWindow!, "postMessage");
-
-    fireEvent.load(frame);
-
-    expect(postMessage).toHaveBeenCalledExactlyOnceWith(
-      "ask_usePostMessage",
-      wecomQr.WECOM_QR_ORIGIN,
+    fireEvent.load(await screen.findByTitle("login.wecomQr"));
+    const oldOptions = mocks.createWWLoginPanel.mock
+      .calls[0][0] as WWLoginOptions;
+    await user.click(screen.getByRole("button", { name: "login.refreshQr" }));
+    await waitFor(() =>
+      expect(mocks.createWWLoginPanel).toHaveBeenCalledTimes(2),
     );
+    act(() => {
+      oldOptions.onLoginSuccess!({ code: "old-code" });
+      oldOptions.onLoginFail!({ errMsg: "old error" });
+    });
+    expect(validate).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("only validates messages from the current WeCom iframe and removes its listener on unmount", async () => {
+  it("uses only the current SDK success callback and ignores callbacks after unmount", async () => {
     const validate = vi.spyOn(wecomQr, "wecomQrCallback").mockReturnValue(null);
     const view = renderLogin();
-    const frame = (await screen.findByTitle(
-      "login.wecomQr",
-    )) as HTMLIFrameElement;
-    const payload =
-      "https://workspace.example/api/auth/oauth/callback?state=state-one&code=test";
-    const send = (origin: string, source: MessageEventSource | null) =>
-      fireEvent(
-        window,
-        new MessageEvent("message", { origin, source, data: payload }),
-      );
-
-    send("https://untrusted.example", frame.contentWindow);
-    send(wecomQr.WECOM_QR_ORIGIN, window);
-    send(wecomQr.WECOM_QR_ORIGIN, null);
-    expect(validate).not.toHaveBeenCalled();
-
-    send(wecomQr.WECOM_QR_ORIGIN, frame.contentWindow);
+    await screen.findByTitle("login.wecomQr");
+    const options = mocks.createWWLoginPanel.mock.calls[0][0] as WWLoginOptions;
+    const panel = mocks.createWWLoginPanel.mock.results[0].value;
+    act(() => options.onLoginSuccess!({ code: "current-code" }));
     expect(validate).toHaveBeenCalledExactlyOnceWith(
-      payload,
+      "current-code",
       expect.objectContaining({ state: "state-one" }),
     );
 
-    const source = frame.contentWindow;
     view.unmount();
+    expect(panel.unmount).toHaveBeenCalledOnce();
     validate.mockClear();
-    send(wecomQr.WECOM_QR_ORIGIN, source);
+    act(() => options.onLoginSuccess!({ code: "late-code" }));
     expect(validate).not.toHaveBeenCalled();
+  });
+
+  it("allows retry when SDK initialization fails", async () => {
+    mocks.createWWLoginPanel.mockImplementationOnce(() => {
+      throw new Error("SDK unavailable");
+    });
+    const user = userEvent.setup();
+    renderLogin();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "SDK unavailable",
+    );
+    await user.click(screen.getByRole("button", { name: "login.refreshQr" }));
+    await screen.findByTitle("login.wecomQr");
+  });
+
+  it("shows SDK login errors and keeps account login available", async () => {
+    const user = userEvent.setup();
+    renderLogin();
+    await screen.findByTitle("login.wecomQr");
+    const options = mocks.createWWLoginPanel.mock.calls[0][0] as WWLoginOptions;
+    act(() =>
+      options.onLoginFail!({ errCode: -31028, errMsg: "Invalid agent" }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Invalid agent");
+    expect(
+      screen.getByRole("button", { name: "login.refreshQr" }),
+    ).toBeEnabled();
+    await user.click(screen.getByRole("tab", { name: "login.accountLogin" }));
+    expect(screen.getByPlaceholderText("login.username")).toBeInTheDocument();
   });
 
   it("cancels pending QR authorization when switching to account login", async () => {
