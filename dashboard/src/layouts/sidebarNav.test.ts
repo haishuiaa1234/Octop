@@ -15,6 +15,34 @@ const adminUser = {
 } as OctopUser;
 
 describe("sidebarNav", () => {
+  it("keeps the fork launcher between experts and tasks", () => {
+    const items = buildNavSections(adminUser)[0].items;
+    expect(items.map((item) => item.key)).toEqual([
+      "chat",
+      "experts",
+      "open-chatgpt",
+      "tasks",
+      "token-usage",
+    ]);
+    expect(items.find((item) => item.key === "open-chatgpt")).toMatchObject({
+      path: "/open-chatgpt",
+      labelKey: "chatgptLauncher.title",
+    });
+  });
+
+  it("preserves upstream permission gates without hiding the fork launcher", () => {
+    const user = { ...adminUser, role: "user", permissions: [] };
+    expect(buildNavSections(user)[0].items.map((item) => item.key)).toEqual([
+      "chat",
+      "open-chatgpt",
+    ]);
+    expect(
+      buildNavSections({ ...user, permissions: ["tasks"] })[0].items.map(
+        (item) => item.key,
+      ),
+    ).toEqual(["chat", "open-chatgpt", "tasks"]);
+  });
+
   it("marks catalog keys as grouped", () => {
     for (const key of SIDEBAR_GROUPED_NAV_KEYS) {
       expect(isGroupedNavKey(key)).toBe(true);
