@@ -46,7 +46,7 @@ class WebsiteInput(BaseModel):
     open_mode: Literal["embed", "new_tab"] = "embed"
     auth_mode: Literal["none", "octop"] = Field(
         default="none",
-        description="Optional Octop identity SSO; external apps manage their own sessions and permissions.",
+        description="Optional 智能工作台 identity SSO; external apps manage their own sessions and permissions.",
     )
     sso_callback_url: str | None = Field(
         default=None,
@@ -62,7 +62,7 @@ class WebsiteInput(BaseModel):
     user_ids: list[int] = Field(
         default_factory=list,
         max_length=10000,
-        description="Existing Octop user IDs when visibility is selected.",
+        description="Existing 智能工作台 user IDs when visibility is selected.",
     )
 
     @field_validator("name", mode="before")

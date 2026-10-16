@@ -116,7 +116,7 @@ async def update_website(
     "/admin/websites/{website_id}",
     status_code=204,
     summary="Delete a website entry",
-    description="Administrator only. Removes the Octop entry, not the external website.",
+    description="Administrator only. Removes the 智能工作台 entry, not the external website.",
 )
 async def delete_website(
     website_id: str,
@@ -149,7 +149,7 @@ async def rotate_sso_secret(
     "/websites/{website_id}/sso/code",
     response_model=SsoCodeResponse,
     summary="Issue an application identity code",
-    description="Requires Octop login and current website access. Binds the code to the current user, app, registered callback, random state and S256 challenge. Expires after 60 seconds; never grants Octop API access.",
+    description="Requires 智能工作台 login and current website access. Binds the code to the current user, app, registered callback, random state and S256 challenge. Expires after 60 seconds; never grants 智能工作台 API access.",
 )
 async def issue_sso_code(
     website_id: str,
@@ -169,7 +169,7 @@ async def issue_sso_code(
     "/app-sso/exchange",
     response_model=SsoExchangeResponse,
     summary="Exchange a single-use application identity code",
-    description="Confidential application backend only. Authenticates the app using its secret and S256 verifier, then atomically consumes the code. Returns identity only, never Octop roles, permissions, provider tokens or JWTs. No Octop JWT is required.",
+    description="Confidential application backend only. Authenticates the app using its secret and S256 verifier, then atomically consumes the code. Returns identity only, never 智能工作台 roles, permissions, provider tokens or JWTs. No 智能工作台 JWT is required.",
 )
 async def exchange_sso_code(
     body: SsoExchangeRequest,

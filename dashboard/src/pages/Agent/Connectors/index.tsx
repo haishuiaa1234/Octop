@@ -815,7 +815,7 @@ function ConnectorConfigDrawer({
         message.warning(
           t(
             "connectors.weknoraNotFound",
-            "未在 OCTOP 主机的 127.0.0.1:8080 检测到 WeKnora",
+            "未在智能工作台主机的 127.0.0.1:8080 检测到 WeKnora",
           ),
         );
         return;
@@ -1498,7 +1498,7 @@ function ConnectorConfigDrawer({
                 {cliInfo.error ??
                   t(
                     "connectors.cliMissingHint",
-                    "主机尚未安装 CLI。可点击「安装 CLI」，或在 Octop 主机终端手动执行下方命令。",
+                    "主机尚未安装 CLI。可点击「安装 CLI」，或在智能工作台主机终端手动执行下方命令。",
                   )}
               </div>
             )}

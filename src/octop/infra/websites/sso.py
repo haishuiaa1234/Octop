@@ -76,7 +76,7 @@ class SsoUser(BaseModel):
 
 class SsoExchangeResponse(BaseModel):
     user: SsoUser = Field(
-        description="Identity only. Octop roles, permissions and tokens are never granted to external apps."
+        description="Identity only. 智能工作台 roles, permissions and tokens are never granted to external apps."
     )
 
 

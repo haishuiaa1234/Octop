@@ -186,7 +186,7 @@ class SsoService:
                 body,
                 "display_name",
                 current,
-                default_names.get(kind, "Octop SSO"),
+                default_names.get(kind, "智能工作台 SSO"),
             ),
             issuer=issuer,
             client_id=self._string(body, "client_id", current, ""),

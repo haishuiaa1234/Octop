@@ -28,7 +28,7 @@ export const websiteLocales = {
     saveFailed: "保存失败，请检查网址和授权用户后重试。",
     authentication: "身份接入",
     authNone: "应用自行登录",
-    authOctop: "Octop 免登录",
+    authOctop: "智能工作台免登录",
     ssoCallback: "免登录回调地址",
     ssoCallbackInvalid:
       "回调须与网站地址同源，且不能包含片段或 code/state 参数。HTTP 来源须由服务端显式加入测试白名单（本机开发除外）。",
@@ -51,10 +51,10 @@ export const websiteLocales = {
     deleteConfirm: "确定删除“{{name}}”的菜单入口吗？",
     nameRequired: "请输入网站名称（最多 80 个字符）",
     urlInvalid:
-      "请输入完整的 HTTP 或 HTTPS 网址，不能包含账号、密码或空白字符，且必须与 Octop 使用不同源。",
+      "请输入完整的 HTTP 或 HTTPS 网址，不能包含账号、密码或空白字符，且必须与智能工作台使用不同源。",
     usersRequired: "请至少选择一位用户",
     accessHint:
-      "这里控制 Octop 内的网站入口。第三方应用的操作权限仍由应用管理；普通用户只能访问已启用且被授权的网站。",
+      "这里控制智能工作台内的网站入口。第三方应用的操作权限仍由应用管理；普通用户只能访问已启用且被授权的网站。",
     embedHint:
       "页面空白或登录异常？请使用右上角“新标签页打开”。第三方网站可能限制嵌入或跨站 Cookie。",
     mixedContent:
@@ -89,7 +89,7 @@ export const websiteLocales = {
     saveFailed: "Save failed. Check the URL and allowed users, then retry.",
     authentication: "Identity integration",
     authNone: "Application sign-in",
-    authOctop: "Octop single sign-on",
+    authOctop: "智能工作台 single sign-on",
     ssoCallback: "SSO callback URL",
     ssoCallbackInvalid:
       "Use a callback on the website origin without a fragment or code/state parameters. HTTP origins require a server-side testing allowlist (except loopback development).",
@@ -112,10 +112,10 @@ export const websiteLocales = {
     deleteConfirm: "Delete the menu entry for “{{name}}”?",
     nameRequired: "Enter a website name (up to 80 characters)",
     urlInvalid:
-      "Enter a complete HTTP or HTTPS URL without credentials or whitespace, on a different origin from Octop.",
+      "Enter a complete HTTP or HTTPS URL without credentials or whitespace, on a different origin from 智能工作台.",
     usersRequired: "Select at least one user",
     accessHint:
-      "These settings control website entries in Octop. Application permissions remain application-owned. Users can only access enabled websites shared with them.",
+      "These settings control website entries in 智能工作台. Application permissions remain application-owned. Users can only access enabled websites shared with them.",
     embedHint:
       "Blank page or login trouble? Use “Open in new tab”. External websites may restrict embedding or cross-site cookies.",
     mixedContent:

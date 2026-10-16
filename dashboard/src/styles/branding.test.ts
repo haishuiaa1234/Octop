@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PNG } from "pngjs";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import zh from "../locales/zh.json";
 import en from "../locales/en.json";
+import { websiteLocales } from "../pages/Websites/locales";
 
 const dashboard = resolve(__dirname, "../..");
 const name = "智能工作台";
@@ -12,7 +14,86 @@ const manifest = JSON.parse(
   readFileSync(resolve(dashboard, "public/manifest.json"), "utf8"),
 );
 
+function displayStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(displayStrings);
+  }
+  return [];
+}
+
 describe("Geneseeq workbench identity", () => {
+  it.each(["zh", "en"] as const)(
+    "uses the workbench name in all %s display copy, keeping technical identifiers",
+    (locale) => {
+      const frontend = locale === "zh" ? zh : en;
+      const backend = JSON.parse(
+        readFileSync(
+          resolve(dashboard, `../src/octop/i18n/${locale}.json`),
+          "utf8",
+        ),
+      );
+      const oldBrand = /Octop|OCTOP(?!_)/;
+      for (const copy of [frontend, backend, websiteLocales[locale]]) {
+        expect(
+          displayStrings(copy).filter((text) => oldBrand.test(text)),
+        ).toEqual([]);
+      }
+      expect(frontend.login.forgotPasswordCommand).toContain(
+        "octop user passwd",
+      );
+      expect(frontend.wizard.password.whereDefault).toContain(
+        "~/.octop/octop-login.txt",
+      );
+      expect(frontend.skills.newSkillTemplate).toContain("octop:");
+    },
+  );
+
+  it.each([
+    "pages/Chat/components/ChatInput.tsx",
+    "pages/Login/ForgotPasswordModal.tsx",
+    "pages/Control/RemoteBrowser/index.tsx",
+    "pages/Control/RemoteDesktop/DesktopPanel.tsx",
+    "pages/Agent/Memory/ProfileOverview.tsx",
+    "pages/Agent/Memory/CandidatesReview.tsx",
+    "pages/Agent/Memory/ProactiveConfig.tsx",
+    "pages/Agent/Memory/EpisodesList.tsx",
+    "pages/Agent/Memory/MigrateMemory.tsx",
+    "pages/Agent/Connectors/index.tsx",
+    "pages/Agent/Channels/components/constants.ts",
+  ])("uses the workbench name in fallback and inline copy in %s", (path) => {
+    const source = ts.createSourceFile(
+      path,
+      readFileSync(resolve(dashboard, "src", path), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const stale: string[] = [];
+    function visit(node: ts.Node) {
+      if (
+        (ts.isStringLiteralLike(node) || ts.isJsxText(node)) &&
+        /\bOctop(?:Bot)?\b|\bOCTOP\b/.test(node.text)
+      ) {
+        stale.push(node.text);
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    expect(stale).toEqual([]);
+  });
+
+  it("uses the workbench name in the desktop startup and settings page", () => {
+    const desktop = readFileSync(
+      resolve(dashboard, "../desktop/src/assets/index.html"),
+      "utf8",
+    );
+    const doc = new DOMParser().parseFromString(desktop, "text/html");
+    expect(doc.title).toBe(name);
+    expect(doc.querySelector("#loading-brand")?.textContent).toBe(name);
+    expect(desktop).not.toContain("Octop");
+  });
+
   it.each(["Header", "Sidebar"])(
     "keeps %s branding free of version numbers without removing update alerts",
     (layout) => {

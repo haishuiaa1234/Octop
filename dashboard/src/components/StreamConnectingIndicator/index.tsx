@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
+import { SHIXIAOHE_MASCOT_SRC } from "../../assets/mascot";
 import styles from "./StreamConnectingIndicator.module.less";
 
-const MASCOT_TYPE = `${import.meta.env.BASE_URL}octop-mascot-type.webp`;
-
 interface StreamConnectingIndicatorProps {
-  /** Status line under the animation (e.g. 「连接中」). */
+  /** Status line under the image (e.g. 「连接中」). */
   label: ReactNode;
   /** Optional secondary hint. */
   hint?: ReactNode;
@@ -16,7 +15,7 @@ interface StreamConnectingIndicatorProps {
 
 /**
  * Shared connecting / waiting-frame indicator for remote browser & desktop.
- * Uses the same Octop mascot loop as chat thinking bubbles.
+ * Uses the same Shi Xiao He artwork as chat thinking bubbles.
  */
 export default function StreamConnectingIndicator({
   label,
@@ -36,7 +35,7 @@ export default function StreamConnectingIndicator({
     <div className={rootClass}>
       <img
         className={styles.mascot}
-        src={MASCOT_TYPE}
+        src={SHIXIAOHE_MASCOT_SRC}
         alt=""
         aria-hidden
         draggable={false}
