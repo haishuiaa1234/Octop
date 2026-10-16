@@ -265,6 +265,7 @@ function ActiveAgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const accent = agent.color || "#6366f1";
+  const isSharedTeam = agent.kind === "team" && agent.is_shared;
 
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -311,9 +312,20 @@ function ActiveAgentCard({
           />
         </div>
         <div className={styles.agentCardInfo}>
+          {isSharedTeam && (
+            <div className={`${styles.agentCardName} ${styles.sharedTeamName}`}>
+              {agent.name}
+            </div>
+          )}
           <div className={styles.agentCardNameRow}>
-            <div className={styles.agentNameCluster}>
-              <div className={styles.agentCardName}>{agent.name}</div>
+            <div
+              className={`${styles.agentNameCluster} ${
+                isSharedTeam ? styles.sharedTeamBadges : ""
+              }`}
+            >
+              {!isSharedTeam && (
+                <div className={styles.agentCardName}>{agent.name}</div>
+              )}
               <TeamChatBadge agent={agent} />
               <SharedExpertHint agent={agent} />
               <RemoteExpertHint agent={agent} />
@@ -426,6 +438,7 @@ function InactiveAgentRow({
 }: AgentRowProps) {
   const { t } = useTranslation();
   const accent = agent.color || "#6366f1";
+  const isSharedTeam = agent.kind === "team" && agent.is_shared;
 
   return (
     <div className={styles.agentRowWrap}>
@@ -452,9 +465,20 @@ function InactiveAgentRow({
           />
         </div>
         <div className={styles.agentRowInfo}>
+          {isSharedTeam && (
+            <div className={`${styles.agentRowName} ${styles.sharedTeamName}`}>
+              {agent.name}
+            </div>
+          )}
           <div className={styles.agentRowNameRow}>
-            <div className={styles.agentNameCluster}>
-              <div className={styles.agentRowName}>{agent.name}</div>
+            <div
+              className={`${styles.agentNameCluster} ${
+                isSharedTeam ? styles.sharedTeamBadges : ""
+              }`}
+            >
+              {!isSharedTeam && (
+                <div className={styles.agentRowName}>{agent.name}</div>
+              )}
               <TeamChatBadge agent={agent} />
               <SharedExpertHint agent={agent} />
               <RemoteExpertHint agent={agent} />
