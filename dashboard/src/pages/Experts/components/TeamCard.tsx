@@ -252,15 +252,6 @@ export const TeamCard = memo(function TeamCard({
                 <Users size={10} strokeWidth={2.4} aria-hidden />
                 {t("chat.teamBadge")}
               </span>
-              {agent.is_shared && (
-                <Tag color="blue">
-                  {isOwner
-                    ? t("experts.share.badge")
-                    : t("experts.teams.shareFromOwner", {
-                        name: agent.owner_username,
-                      })}
-                </Tag>
-              )}
               <RemoteExpertHint agent={agent} />
               <Tooltip title={formatAgentState(localState, t)}>
                 <span
@@ -272,6 +263,15 @@ export const TeamCard = memo(function TeamCard({
                 />
               </Tooltip>
             </div>
+            {agent.is_shared && (
+              <Tag color="blue" className={styles.teamCardShareTag}>
+                {isOwner
+                  ? t("experts.share.badge")
+                  : t("experts.teams.shareFromOwner", {
+                      name: agent.owner_username,
+                    })}
+              </Tag>
+            )}
           </div>
 
           <div className={styles.agentCard2HeaderActions}>

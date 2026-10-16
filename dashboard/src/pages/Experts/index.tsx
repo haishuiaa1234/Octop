@@ -139,7 +139,7 @@ export default function ExpertsPage() {
         fetchExpertLibrary(),
         fetchPublishedExperts(),
       ]);
-      setLocalAgents(ownedExperts(agentList));
+      setLocalAgents(agentList);
       setExperts(expertList);
       setPublishedExperts(publishedList);
       await refreshAgents({ silent: true, force: true });
@@ -216,9 +216,10 @@ export default function ExpertsPage() {
 
   // ── Local agent state (extends AgentContext for optimistic updates) ──
   const ownedAgents = useMemo(() => ownedExperts(agents), [agents]);
-  const [localAgents, setLocalAgents] = useState<OctopAgent[]>(ownedAgents);
+  const [localAgents, setLocalAgents] = useState<OctopAgent[]>(agents);
   const expertAgents = useMemo(
-    () => localAgents.filter((item) => item.kind !== "team"),
+    () =>
+      localAgents.filter((item) => item.kind !== "team" && isOwnedExpert(item)),
     [localAgents],
   );
   const teamAgents = useMemo(
@@ -259,7 +260,7 @@ export default function ExpertsPage() {
   const [newAgentId, setNewAgentId] = useState<string | null>(null);
 
   useEffect(() => {
-    setLocalAgents(ownedExperts(agents));
+    setLocalAgents(agents);
   }, [agents]);
 
   const handleStateChange = useCallback((agentId: string, newState: string) => {
@@ -629,7 +630,7 @@ export default function ExpertsPage() {
         ) : (
           <div className={styles.cardGrid}>
             {visibleTeamAgents.map((agent) => (
-              <div key={agent.agent_id}>
+              <div key={agent.agent_id} className={styles.teamCardCell}>
                 <TeamCard
                   agent={agent}
                   experts={pickableExperts}
