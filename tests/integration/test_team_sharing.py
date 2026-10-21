@@ -33,6 +33,9 @@ async def test_team_sharing_visibility_and_revocation(team_env):
     assert response.status_code == 200, response.text
     assert response.json()["is_shared"] is True
     assert response.json()["is_owner"] is True
+    owned = (await client.get("/api/agents", headers=owner)).json()
+    own_team = next(row for row in owned if row["agent_id"] == team_id)
+    assert own_team["owner_username"] == "team_owner"
     visible = (await client.get("/api/teams", headers=peer)).json()
     assert [row["team_id"] for row in visible] == [team_id]
     assert visible[0]["is_owner"] is False

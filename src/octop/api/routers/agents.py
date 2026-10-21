@@ -253,13 +253,13 @@ async def list_agents(
     owned = registry.list_agents(user.id)
     shared = server.services.agent_repo.list_shared(exclude_user_id=user.id)
     rows = list({row.agent_id: row for row in [*shared, *owned]}.values())
-    shared_owner_username_by_id: dict[int, str] = {}
+    owner_username_by_id: dict[int, str] = {user.id: user.username}
     for row in shared:
-        if row.user_id is None or row.user_id in shared_owner_username_by_id:
+        if row.user_id is None or row.user_id in owner_username_by_id:
             continue
         owner = server.services.user_repo.get(row.user_id)
         if owner is not None:
-            shared_owner_username_by_id[row.user_id] = owner.username
+            owner_username_by_id[row.user_id] = owner.username
     return _attach_unread_counts(
         server,
         user.id,
@@ -268,7 +268,7 @@ async def list_agents(
                 r,
                 viewer_user_id=user.id,
                 owner_username=(
-                    shared_owner_username_by_id.get(r.user_id) if r.user_id is not None else None
+                    owner_username_by_id.get(r.user_id) if r.user_id is not None else None
                 ),
                 bootstrap_pending=_bootstrap_pending_for(server, r.agent_id),
                 server=server,

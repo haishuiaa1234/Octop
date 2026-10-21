@@ -47,7 +47,6 @@ import {
 import styles from "../index.module.less";
 import RemoteExpertHint from "../../Chat/components/RemoteExpertHint";
 import { expertDeleteConfirm } from "../../../utils/remoteExpert";
-import { isSharedExpertViewer } from "../../../utils/sharedExpert";
 import type { PublishedExpert } from "../../../api/modules/publishedExperts";
 import PublishTemplateButton from "./PublishTemplateButton";
 import AgentMoreActions from "./AgentMoreActions";
@@ -171,19 +170,19 @@ export default function AgentExpertsTable({
   }, [agents]);
 
   useEffect(() => {
-    const transientIds = agents
-      .filter((a) => !a.bridge)
-      .map((a) => a.agent_id)
-      .filter((id) => TRANSIENT.has(localStates[id] ?? ""));
-    if (transientIds.length === 0) {
+    const transientAgents = agents.filter(
+      (a) => !a.bridge && TRANSIENT.has(localStates[a.agent_id] ?? ""),
+    );
+    if (transientAgents.length === 0) {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
       return;
     }
     pollRef.current = setInterval(() => {
-      for (const id of transientIds) {
+      for (const agent of transientAgents) {
+        const id = agent.agent_id;
         request<{ state: string; last_error: string | null }>(
-          `/agents/${id}/status`,
+          agent.is_owner === false ? `/agents/${id}` : `/agents/${id}/status`,
         )
           .then((s) => {
             setLocalStates((prev) => ({ ...prev, [id]: s.state }));
@@ -311,16 +310,19 @@ export default function AgentExpertsTable({
               size={row.icon_url ? 28 : 16}
             />
           </span>
-          <span className={styles.tableNameText}>{name}</span>
-          {row.is_shared && (
-            <Tag color="blue">
-              {isSharedExpertViewer(row)
-                ? t("experts.share.fromOwner", {
-                    name: row.owner_username,
-                  })
-                : t("experts.share.badge")}
-            </Tag>
-          )}
+          <div className={styles.tableNameDetails}>
+            <span className={styles.tableNameText}>{name}</span>
+            {row.is_shared && (
+              <div className={styles.agentShareMeta}>
+                <Tag color="blue">{t("experts.share.badge")}</Tag>
+                {row.owner_username && (
+                  <span className={styles.agentShareCreator}>
+                    {t("experts.share.creator", { name: row.owner_username })}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           <RemoteExpertHint agent={row} />
         </div>
       ),
@@ -383,7 +385,7 @@ export default function AgentExpertsTable({
                     <span>{friendlyError}</span>
                   </div>
                 </Tooltip>
-                {isAgentModelConfigError(row.last_error) && (
+                {isOwner && isAgentModelConfigError(row.last_error) && (
                   <button
                     type="button"
                     className={styles.tableErrorAction}

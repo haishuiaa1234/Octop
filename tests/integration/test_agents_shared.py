@@ -36,6 +36,12 @@ async def test_shared_agent_appears_for_other_user(env) -> None:
     assert response.status_code == 200, response.text
     assert response.json()["is_shared"] is True
 
+    response = await client.get("/api/agents", headers=owner_auth)
+    assert response.status_code == 200
+    owned = next(row for row in response.json() if row["agent_id"] == agent_id)
+    assert owned["is_owner"] is True
+    assert owned["owner_username"] == "share_owner"
+
     response = await client.get("/api/agents", headers=peer_auth)
     assert response.status_code == 200
     agents = {row["agent_id"]: row for row in response.json()}
@@ -83,6 +89,31 @@ async def test_peer_cannot_patch_shared_agent(env) -> None:
         json={"name": "hijack"},
     )
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize("action", ["start", "stop", "reload"])
+async def test_peer_cannot_manage_shared_agent_lifecycle(env, action: str) -> None:
+    client, owner_auth, peer_auth, agent_id = await _shared_agent(env)
+    response = await client.patch(
+        f"/api/agents/{agent_id}", headers=owner_auth, json={"is_shared": True}
+    )
+    assert response.status_code == 200, response.text
+    response = await client.post(f"/api/agents/{agent_id}/{action}", headers=peer_auth)
+    assert response.status_code == 403, response.text
+
+
+async def test_peer_cannot_delete_or_unshare_shared_agent(env) -> None:
+    client, owner_auth, peer_auth, agent_id = await _shared_agent(env)
+    response = await client.patch(
+        f"/api/agents/{agent_id}", headers=owner_auth, json={"is_shared": True}
+    )
+    assert response.status_code == 200, response.text
+    response = await client.delete(f"/api/agents/{agent_id}", headers=peer_auth)
+    assert response.status_code == 403, response.text
+    response = await client.patch(
+        f"/api/agents/{agent_id}", headers=peer_auth, json={"is_shared": False}
+    )
+    assert response.status_code == 403, response.text
 
 
 async def test_peer_cannot_mutate_shared_agent_workspace_or_skills(env) -> None:

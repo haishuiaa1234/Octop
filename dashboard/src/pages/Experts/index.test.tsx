@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OctopAgent } from "../../context/AgentContext";
 
@@ -33,7 +39,15 @@ vi.mock("./components/EditAgentDrawer", () => ({ default: () => null }));
 vi.mock("./components/CreateFromExpertDrawer", () => ({ default: () => null }));
 vi.mock("./components/TeamDrawer", () => ({ default: () => null }));
 vi.mock("./components/ExpertMarketTab", () => ({ default: () => null }));
-vi.mock("./components/AgentExpertsTable", () => ({ default: () => null }));
+vi.mock("./components/AgentExpertsTable", () => ({
+  default: ({ agents }: { agents: OctopAgent[] }) => (
+    <div data-testid="expert-table">
+      {agents.map((agent) => (
+        <div key={agent.agent_id}>{agent.name}</div>
+      ))}
+    </div>
+  ),
+}));
 
 import ExpertsPage from "./index";
 
@@ -58,7 +72,7 @@ const sharedExpert = {
   kind: "expert",
 };
 
-describe("ExpertsPage shared teams", () => {
+describe("ExpertsPage shared experts and teams", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -68,12 +82,40 @@ describe("ExpertsPage shared teams", () => {
     );
   });
 
-  it("shows shared teams to recipients without including shared solo experts in management", async () => {
+  it("shows shared solo experts in My Experts and shared teams in My Teams", async () => {
     render(<ExpertsPage />);
-    expect(screen.queryByText(sharedExpert.name)).not.toBeInTheDocument();
+    expect(screen.getByText(sharedExpert.name)).toBeInTheDocument();
+    expect(screen.queryByText(sharedTeam.name)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /experts.myTeams/ }));
     expect(await screen.findByText(sharedTeam.name)).toBeInTheDocument();
     expect(screen.getByText(ownedTeam.name)).toBeInTheDocument();
+  });
+
+  it("includes shared solo experts in table view", async () => {
+    localStorage.setItem("octop:experts-view", "table");
+    await act(async () => {
+      render(<ExpertsPage />);
+    });
+    expect(screen.getByTestId("expert-table")).toHaveTextContent(
+      sharedExpert.name,
+    );
+  });
+
+  it("keeps shared solo experts when the list is refreshed", async () => {
+    render(<ExpertsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "" }));
+    await waitFor(() => expect(state.refresh).toHaveBeenCalled());
+    expect(screen.getByText(sharedExpert.name)).toBeInTheDocument();
+  });
+
+  it("removes revoked solo experts when the agent context updates", async () => {
+    const { rerender } = render(<ExpertsPage />);
+    expect(screen.getByText(sharedExpert.name)).toBeInTheDocument();
+    state.agents = [ownedTeam];
+    rerender(<ExpertsPage />);
+    await waitFor(() =>
+      expect(screen.queryByText(sharedExpert.name)).not.toBeInTheDocument(),
+    );
   });
 
   it("keeps shared teams when the list is refreshed", async () => {

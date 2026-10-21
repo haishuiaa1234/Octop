@@ -38,7 +38,6 @@ import {
 import styles from "../index.module.less";
 import RemoteExpertHint from "../../Chat/components/RemoteExpertHint";
 import { expertDeleteConfirm } from "../../../utils/remoteExpert";
-import { isSharedExpertViewer } from "../../../utils/sharedExpert";
 import type { PublishedExpert } from "../../../api/modules/publishedExperts";
 import PublishTemplateButton from "./PublishTemplateButton";
 import AgentMoreActions from "./AgentMoreActions";
@@ -91,6 +90,7 @@ export const AgentCard = memo(function AgentCard({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { setActiveAgent, refresh: refreshAgents } = useAgent();
+  const isOwner = agent.is_owner !== false;
 
   const [localState, setLocalState] = useState(agent.state);
   const [localError, setLocalError] = useState(agent.last_error);
@@ -124,7 +124,9 @@ export const AgentCard = memo(function AgentCard({
     }
     pollRef.current = setInterval(() => {
       request<{ state: string; last_error: string | null }>(
-        `/agents/${agent.agent_id}/status`,
+        isOwner
+          ? `/agents/${agent.agent_id}/status`
+          : `/agents/${agent.agent_id}`,
       )
         .then((s) => {
           setLocalState(s.state);
@@ -147,13 +149,14 @@ export const AgentCard = memo(function AgentCard({
     localState,
     agent.agent_id,
     agent.bridge,
+    isOwner,
     onStateChange,
     onPollSettled,
     refreshAgents,
   ]);
 
   useEffect(() => {
-    if (agent.bridge || localState !== "running") {
+    if (!isOwner || agent.bridge || localState !== "running") {
       setMemorySlimming(false);
       if (maintPollRef.current) {
         clearInterval(maintPollRef.current);
@@ -195,7 +198,7 @@ export const AgentCard = memo(function AgentCard({
         maintPollRef.current = null;
       }
     };
-  }, [localState, agent.agent_id, agent.bridge]);
+  }, [localState, agent.agent_id, agent.bridge, isOwner]);
 
   const isTransient = TRANSIENT.has(localState);
   const switchChecked = localState === "running" || localState === "starting";
@@ -285,8 +288,6 @@ export const AgentCard = memo(function AgentCard({
   const meta = getStateMeta(localState);
   const friendlyError = formatAgentError(localError, t);
   const chatReady = isAgentChatReady(localState);
-  const sharedViewer = isSharedExpertViewer(agent);
-  const isOwner = agent.is_owner !== false;
   const deleteConfirm = expertDeleteConfirm(agent, t);
 
   return (
@@ -314,17 +315,18 @@ export const AgentCard = memo(function AgentCard({
           <div className={styles.agentCard2TitleBlock}>
             <div className={styles.agentCard2NameRow}>
               <div className={styles.agentCard2Name}>{agent.name}</div>
-              {agent.is_shared && (
-                <Tag color="blue">
-                  {sharedViewer
-                    ? t("experts.share.fromOwner", {
-                        name: agent.owner_username,
-                      })
-                    : t("experts.share.badge")}
-                </Tag>
-              )}
               <RemoteExpertHint agent={agent} />
             </div>
+            {agent.is_shared && (
+              <div className={styles.agentShareMeta}>
+                <Tag color="blue">{t("experts.share.badge")}</Tag>
+                {agent.owner_username && (
+                  <span className={styles.agentShareCreator}>
+                    {t("experts.share.creator", { name: agent.owner_username })}
+                  </span>
+                )}
+              </div>
+            )}
             <div className={styles.agentCardIdRow}>
               <Tooltip title={t("experts.copyAgentId")}>
                 <button
@@ -394,7 +396,7 @@ export const AgentCard = memo(function AgentCard({
                 </span>
               </div>
             </Tooltip>
-            {isAgentModelConfigError(localError) && (
+            {isOwner && isAgentModelConfigError(localError) && (
               <button
                 type="button"
                 className={styles.agentCardErrorAction}

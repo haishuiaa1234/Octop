@@ -840,6 +840,7 @@
     "share": {
       "toggle": "Share with other users",
       "badge": "Shared",
+      "creator": "Created by: {{name}}",
       "fromOwner": "Shared expert · from {{name}}"
     },
     "published": {

@@ -128,18 +128,16 @@ export const TeamCard = memo(function TeamCard({
 
   // Poll during transient states (local agents only — bridge shadows have no runtime status).
   useEffect(() => {
-    if (
-      agent.bridge ||
-      agent.is_owner === false ||
-      !TRANSIENT.has(localState)
-    ) {
+    if (agent.bridge || !TRANSIENT.has(localState)) {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
       return;
     }
     pollRef.current = setInterval(() => {
       request<{ state: string; last_error: string | null }>(
-        `/agents/${agent.agent_id}/status`,
+        agent.is_owner === false
+          ? `/agents/${agent.agent_id}`
+          : `/agents/${agent.agent_id}/status`,
       )
         .then((s) => {
           setLocalState(s.state);
@@ -264,26 +262,28 @@ export const TeamCard = memo(function TeamCard({
               </Tooltip>
             </div>
             {agent.is_shared && (
-              <Tag color="blue" className={styles.teamCardShareTag}>
-                {isOwner
-                  ? t("experts.share.badge")
-                  : t("experts.teams.shareFromOwner", {
-                      name: agent.owner_username,
-                    })}
-              </Tag>
+              <div className={styles.agentShareMeta}>
+                <Tag color="blue">{t("experts.share.badge")}</Tag>
+                {agent.owner_username && (
+                  <span className={styles.agentShareCreator}>
+                    {t("experts.share.creator", { name: agent.owner_username })}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
-          <div className={styles.agentCard2HeaderActions}>
-            <Switch
-              size="small"
-              checked={switchChecked}
-              loading={isTransient || actionLoading}
-              disabled={!isOwner}
-              onChange={(checked) => void handleToggle(checked)}
-              className={styles.agentCard2Switch}
-            />
-          </div>
+          {isOwner && (
+            <div className={styles.agentCard2HeaderActions}>
+              <Switch
+                size="small"
+                checked={switchChecked}
+                loading={isTransient || actionLoading}
+                onChange={(checked) => void handleToggle(checked)}
+                className={styles.agentCard2Switch}
+              />
+            </div>
+          )}
         </div>
 
         {agent.description?.trim() ? (
@@ -351,48 +351,51 @@ export const TeamCard = memo(function TeamCard({
         )}
 
         <div className={styles.agentCard2Footer}>
-          <Tooltip
-            title={
-              chatReady
-                ? t("pageShell.workspace.title")
-                : t("workspace.requiresRunning")
-            }
-            mouseEnterDelay={0.5}
-          >
-            <button
-              type="button"
-              className={styles.agentCard2EditBtn}
-              disabled={!isOwner || !chatReady}
-              onClick={() => setWorkspaceDrawerOpen(true)}
-              aria-label={t("pageShell.workspace.title")}
-            >
-              <FolderOpen size={13} />
-            </button>
-          </Tooltip>
+          {isOwner && (
+            <>
+              <Tooltip
+                title={
+                  chatReady
+                    ? t("pageShell.workspace.title")
+                    : t("workspace.requiresRunning")
+                }
+                mouseEnterDelay={0.5}
+              >
+                <button
+                  type="button"
+                  className={styles.agentCard2EditBtn}
+                  disabled={!chatReady}
+                  onClick={() => setWorkspaceDrawerOpen(true)}
+                  aria-label={t("pageShell.workspace.title")}
+                >
+                  <FolderOpen size={13} />
+                </button>
+              </Tooltip>
 
-          <Tooltip title={t("experts.reloadAgent")} mouseEnterDelay={0.5}>
-            <button
-              type="button"
-              className={styles.agentCard2EditBtn}
-              disabled={!isOwner || isTransient || actionLoading}
-              onClick={() => void handleReload()}
-              aria-label={t("experts.reloadAgent")}
-            >
-              <RefreshCw size={13} />
-            </button>
-          </Tooltip>
+              <Tooltip title={t("experts.reloadAgent")} mouseEnterDelay={0.5}>
+                <button
+                  type="button"
+                  className={styles.agentCard2EditBtn}
+                  disabled={isTransient || actionLoading}
+                  onClick={() => void handleReload()}
+                  aria-label={t("experts.reloadAgent")}
+                >
+                  <RefreshCw size={13} />
+                </button>
+              </Tooltip>
 
-          <Tooltip title={t("common.edit", "Edit")} mouseEnterDelay={0.5}>
-            <button
-              type="button"
-              className={styles.agentCard2EditBtn}
-              disabled={!isOwner}
-              onClick={() => onEdit(agent.agent_id)}
-              aria-label={t("common.edit", "Edit")}
-            >
-              <Pencil size={13} />
-            </button>
-          </Tooltip>
+              <Tooltip title={t("common.edit", "Edit")} mouseEnterDelay={0.5}>
+                <button
+                  type="button"
+                  className={styles.agentCard2EditBtn}
+                  onClick={() => onEdit(agent.agent_id)}
+                  aria-label={t("common.edit", "Edit")}
+                >
+                  <Pencil size={13} />
+                </button>
+              </Tooltip>
+            </>
+          )}
 
           {isOwner ? (
             <Popconfirm

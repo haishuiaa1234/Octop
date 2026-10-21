@@ -48,20 +48,20 @@ describe("TeamCard shared access", () => {
   it("marks an owner's shared team", () => {
     render(card({ ...team, is_owner: true }));
     expect(screen.getByText("experts.share.badge")).toBeInTheDocument();
+    expect(screen.getByText("experts.share.creator")).toBeInTheDocument();
   });
 
-  it("disables management controls for viewers but keeps chat available", () => {
+  it("hides management controls for viewers but keeps chat available", () => {
     render(card(team));
-    expect(
-      screen.getByText("experts.teams.shareFromOwner"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByText("experts.share.badge")).toBeInTheDocument();
+    expect(screen.getByText("experts.share.creator")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
     for (const name of [
       "Edit",
       "pageShell.workspace.title",
       "experts.reloadAgent",
     ]) {
-      expect(screen.getByRole("button", { name })).toBeDisabled();
+      expect(screen.queryByRole("button", { name })).toBeNull();
     }
     expect(screen.queryByRole("button", { name: "common.more" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();

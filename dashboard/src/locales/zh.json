@@ -840,6 +840,7 @@
     "share": {
       "toggle": "共享给其他用户",
       "badge": "已共享",
+      "creator": "创建人：{{name}}",
       "fromOwner": "共享专家 · 来自 {{name}}"
     },
     "published": {

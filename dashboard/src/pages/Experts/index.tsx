@@ -219,7 +219,10 @@ export default function ExpertsPage() {
   const [localAgents, setLocalAgents] = useState<OctopAgent[]>(agents);
   const expertAgents = useMemo(
     () =>
-      localAgents.filter((item) => item.kind !== "team" && isOwnedExpert(item)),
+      localAgents.filter(
+        (item) =>
+          item.kind !== "team" && (isOwnedExpert(item) || item.is_shared),
+      ),
     [localAgents],
   );
   const teamAgents = useMemo(
