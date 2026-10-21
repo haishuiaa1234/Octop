@@ -753,6 +753,30 @@
     "ESFP": "Entertainer"
   },
   "experts": {
+    "development": {
+      "download": "Download starter code",
+      "guide": "Publishing guide",
+      "title": "Develop and publish an expert",
+      "repository": "Code repository",
+      "readme": "Read the full development guide",
+      "access": "Connect to the company network and sign in to GitLab with repository access. If the download does not start, open the repository and download its ZIP archive.",
+      "prepare": "Prepare the code and environment",
+      "requirements": "Install Python 3.12 or later on your computer. Browser login requires Edge or Chrome.",
+      "zip": "Download and extract the ZIP. Open PowerShell in the directory containing publish.cmd and install the publisher dependencies:",
+      "clone": "Alternatively, clone with Git",
+      "develop": "Create and develop your expert",
+      "sampleName": "My expert",
+      "files": "Each expert has its own directory. Define behavior in my-expert/expert/AGENTS.md, add skills under expert/skills/, and tools under plugins/. List new files in archive.json. Configure tool parameters in tools.payload.json and secret references in runtime.json; never commit passwords. Validate when ready:",
+      "validate": "Validate the expert",
+      "publish": "Run the interactive publisher",
+      "otherPlatforms": "On macOS / Linux, or to use Python directly, run python publish.py.",
+      "login": "Select the expert, publish/update, and account, then complete website login and CAPTCHA. Any account can publish its own private experts. Octop and GitLab have separate logins.",
+      "success": "After the publisher reports success and command completion, configuration publication is complete and the command exits. Then verify real business behavior in the expert chat.",
+      "update": "Update an existing expert",
+      "updateDetail": "Edit the expert directory and run the same publisher again with the same expert and account. It updates the existing instance, skips unchanged content, and increments the archive patch version when content changes.",
+      "receipts": "Keep the local .deploy/ receipts and transfer them when changing computers; do not commit them to Git. Fix errors and retry. Reconcile conflicting edits made in Octop before updating.",
+      "tools": "Installing or updating shared plugins requires plugin management permission. Other accounts can reuse an installed matching version. Increment plugin.yaml's version when changing plugin code."
+    },
     "externalApi": {
       "title": "API integration",
       "enabled": "External API access",

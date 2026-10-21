@@ -753,6 +753,30 @@
     "ESFP": "表演者"
   },
   "experts": {
+    "development": {
+      "download": "下载开发代码",
+      "guide": "发布指南",
+      "title": "快速开发与发布专家",
+      "repository": "代码仓库",
+      "readme": "查看完整开发文档",
+      "access": "需连接公司内网，并登录有仓库访问权限的 GitLab 账号。下载未开始时，可打开代码仓库下载 ZIP。",
+      "prepare": "准备代码与环境",
+      "requirements": "在电脑上安装 Python 3.12 或更新版本；网页登录需要 Edge 或 Chrome。",
+      "zip": "下载 ZIP 并解压，在包含 publish.cmd 的目录打开 PowerShell，安装发布脚本依赖：",
+      "clone": "也可以使用 Git 克隆代码",
+      "develop": "创建并开发自己的专家",
+      "sampleName": "我的专家",
+      "files": "每个专家一个目录。编辑 my-expert/expert/AGENTS.md 定义行为，在 expert/skills/ 下添加技能；工具放在 plugins/ 下。新增文件需同步 archive.json 清单，工具参数与秘密引用分别配置在 tools.payload.json 和 runtime.json；不要提交密码。开发完成后校验：",
+      "validate": "校验专家",
+      "publish": "运行交互式发布",
+      "otherPlatforms": "macOS / Linux 或直接使用 Python：运行 python publish.py。",
+      "login": "按菜单选择专家、发布/更新及登录账号，在网页完成登录和验证码。任何账号都可以发布自己的私有专家；Octop 登录与 GitLab 登录相互独立。",
+      "success": "看到“发布成功”和“命令执行完毕”后即完成配置发布，命令自动退出。随后在专家会话中验证实际业务效果。",
+      "update": "更新已发布的专家",
+      "updateDetail": "修改专家目录中的代码后，再次运行同一发布脚本，选择同一专家与账号。脚本更新原实例，未变内容跳过写入；归档内容变化时自动递增补丁版本。",
+      "receipts": "保留本机 .deploy/ 发布记录，更换电脑时一并迁移；记录不提交 Git。失败后可修复并重试，线上人工改动发生冲突时需先核对。",
+      "tools": "共享插件的安装和更新需要插件管理权限；普通账号可复用已安装的同版本插件。修改插件源码时需递增 plugin.yaml 中的版本。"
+    },
     "externalApi": {
       "title": "API 对接",
       "enabled": "开放 API 对接",

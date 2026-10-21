@@ -59,6 +59,7 @@ import { TeamCard } from "./components/TeamCard";
 import { PublishedExpertCard } from "./components/PublishedExpertCard";
 import AgentExpertsTable from "./components/AgentExpertsTable";
 import ExpertMarketTab from "./components/ExpertMarketTab";
+import ExpertDeveloperResources from "./components/ExpertDeveloperResources";
 import { OctopEmptyMascot } from "../../components/EmptyState";
 import { pickLocale } from "../../utils/localizedText";
 import { isOwnedExpert, ownedExperts } from "../../utils/sharedExpert";
@@ -830,6 +831,7 @@ export default function ExpertsPage() {
     <PageShell.FillTabs
       title={t("pageShell.experts.title")}
       subtitle={t("pageShell.experts.subtitle")}
+      actions={<ExpertDeveloperResources />}
     >
       <Tabs
         activeKey={activeTab}

@@ -26,7 +26,18 @@ vi.mock("../../hooks/useCurrentUser", () => ({
 }));
 vi.mock("../../layouts/PageShell", () => ({
   default: {
-    FillTabs: ({ children }: { children: React.ReactNode }) => children,
+    FillTabs: ({
+      children,
+      actions,
+    }: {
+      children: React.ReactNode;
+      actions?: React.ReactNode;
+    }) => (
+      <>
+        {actions}
+        {children}
+      </>
+    ),
   },
 }));
 vi.mock("./components/AgentCard", () => ({
@@ -89,6 +100,23 @@ describe("ExpertsPage shared experts and teams", () => {
     fireEvent.click(screen.getByRole("tab", { name: /experts.myTeams/ }));
     expect(await screen.findByText(sharedTeam.name)).toBeInTheDocument();
     expect(screen.getByText(ownedTeam.name)).toBeInTheDocument();
+  });
+
+  it("offers code download and the publication guide even without an expert", async () => {
+    state.agents = [];
+    render(<ExpertsPage />);
+    expect(
+      screen.getByRole("link", { name: "experts.development.download" }),
+    ).toHaveAttribute(
+      "href",
+      "http://10.1.3.254/report-group/expert-archives/-/archive/master/expert-archives-master.zip",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "experts.development.guide" }),
+    );
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "experts.development.title",
+    );
   });
 
   it("includes shared solo experts in table view", async () => {
