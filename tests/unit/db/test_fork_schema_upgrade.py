@@ -34,7 +34,7 @@ def test_upgrade_both_fork_histories(tmp_path: Path, history: str) -> None:
     migrate.run_migrations(pool)
 
     with pool.connect() as conn:
-        assert conn.execute("SELECT version FROM _schema_version").fetchone()[0] == 21
+        assert conn.execute("SELECT version FROM _schema_version").fetchone()[0] == 22
         agent = conn.execute(
             "SELECT name, external_api_json FROM agents WHERE agent_id = 'custom-expert'"
         ).fetchone()

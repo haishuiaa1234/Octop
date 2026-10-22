@@ -357,6 +357,10 @@ async def test_stream_host_followup_marks_live_and_persists(
     assert done
     assert all(frame.get("team_wrapup") is True for frame in done)
     repo.append_if_ready.assert_called()
+    identity = next(frame for frame in frames if frame.get("type") == "answer_identity")
+    stored = repo.append_if_ready.call_args.args[1][-1]
+    assert identity["message_id"] == stored.message_id
+    assert identity["team_wrapup"] is True
 
 
 @pytest.mark.asyncio
@@ -1082,6 +1086,10 @@ async def test_stream_team_peer_relays_reasoning_and_tools(processor_env: dict) 
 
     async def fake_stream(_agent_id: str, _request: dict[str, object]) -> object:
         yield {"type": "reasoning", "content": "check labs"}
+        yield {
+            "type": "state_update",
+            "data": {"messages": [{"role": "assistant", "id": "member-answer", "content": "rest"}]},
+        }
         yield {"type": "tool_call_chunk", "id": "c1", "name": "read_file", "args": "{}"}
         yield {"type": "tool_result", "messages": [{"tool_call_id": "c1", "content": "ok"}]}
         yield {"type": "token", "content": "rest"}
@@ -1103,6 +1111,8 @@ async def test_stream_team_peer_relays_reasoning_and_tools(processor_env: dict) 
     )
     kinds = [frame.get("type") for frame in frames]
     assert "reasoning" in kinds
+    state = next(frame for frame in frames if frame.get("type") == "state_update")
+    assert state.get("agent_id") == "child"
     assert "tool_call_chunk" in kinds
     assert "tool_result" in kinds
     assert all(
@@ -1661,11 +1671,14 @@ async def test_fan_in_skips_snapshot_after_live_stream(processor_env: dict) -> N
             source_thread_id="thr_parent",
             source_session_key=None,
         ),
-        [AIMessage(content="already streamed")],
+        [AIMessage(content="already streamed", id="stored-member")],
         live_streamed=True,
     )
     tokens = [frame for frame in frames if frame.get("type") == "token"]
     assert tokens == []
+    identity = next(frame for frame in frames if frame.get("type") == "answer_identity")
+    assert identity["message_id"] == "stored-member"
+    assert identity["agent_id"] == "child"
 
 
 @pytest.mark.asyncio
@@ -1693,14 +1706,18 @@ async def test_fan_in_pushes_snapshot_when_not_live(processor_env: dict) -> None
             source_thread_id="thr_parent",
             source_session_key=None,
         ),
-        [AIMessage(content="late join")],
+        [
+            AIMessage(content="early fragment", id="early-member"),
+            AIMessage(content="late join", id="stored-member"),
+        ],
         live_streamed=False,
     )
     tokens = [frame for frame in frames if frame.get("type") == "token"]
-    assert tokens[0].get("content") == "late join"
+    assert tokens[0].get("content") == "early fragment late join"
     assert tokens[0].get("agent_id") == "child"
     assert tokens[0].get("agent") == "child"
     assert tokens[0].get("team_snapshot") is True
+    assert tokens[0].get("message_id") == "stored-member"
 
 
 def _bind_im_session(processor_env: dict, *, thread_id: str = "thr_parent") -> str:

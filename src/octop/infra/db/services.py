@@ -14,6 +14,7 @@ from octop.infra.db.repos.care_push import CarePushRepo
 from octop.infra.db.repos.channels import ChannelRepo
 from octop.infra.db.repos.connectors import ConnectorRepo
 from octop.infra.db.repos.cron import CronJobRepo
+from octop.infra.db.repos.feedback import FeedbackRepo
 from octop.infra.db.repos.invites import InviteRepo
 from octop.infra.db.repos.knowledge import KnowledgeRepo
 from octop.infra.db.repos.proactive_care_config import ProactiveCareConfigRepo
@@ -64,6 +65,7 @@ class RepoBundle:
     care_push_repo: CarePushRepo
     proactive_care_config_repo: ProactiveCareConfigRepo
     sso_repo: SsoRepo
+    feedback_repo: FeedbackRepo
 
     @classmethod
     def from_pool(cls, db: DatabasePool) -> RepoBundle:
@@ -94,6 +96,7 @@ class RepoBundle:
             care_push_repo=CarePushRepo(db),
             proactive_care_config_repo=ProactiveCareConfigRepo(db),
             sso_repo=SsoRepo(db),
+            feedback_repo=FeedbackRepo(db),
         )
 
 
@@ -102,6 +105,10 @@ class SharedServices:
     paths: PathLayout
     config: OctopConfig
     repos: RepoBundle
+
+    @property
+    def feedback_repo(self) -> FeedbackRepo:
+        return self.repos.feedback_repo
 
     @property
     def db(self) -> DatabasePool:

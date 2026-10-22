@@ -67,6 +67,8 @@ export interface UserComposerContext {
 
 export interface ChatMessage {
   id: string;
+  /** Persisted answer ID, distinct from the temporary streaming UI ID. */
+  feedbackMessageId?: string;
   role: "user" | "assistant" | "system" | "tool";
   content: string;
   type?: string;

@@ -60,6 +60,7 @@ import { octopThreadsApi } from "../../api/modules/octopThreads";
 import type { TokenUsage } from "../../api/types";
 import type { ChatAttachment } from "./hooks/useChat";
 import MessageList from "./components/MessageList";
+import { FeedbackProvider } from "./FeedbackContext";
 import ChatInput, { type ChatInputHandle } from "./components/ChatInput";
 import WelcomeScreen from "./components/WelcomeScreen";
 import AgentNotReadyScreen from "./components/AgentNotReadyScreen";
@@ -1541,37 +1542,45 @@ function ChatPageInner() {
                   }}
                   isTeam={isTeamChat}
                 >
-                  <MessageList
-                    messages={messages}
+                  <FeedbackProvider
                     agentId={resolvedAgentId}
-                    composerLookups={composerLookups}
-                    loading={awaitingThreadHistory}
-                    historyHasMore={historyHasMore}
-                    historyLoadingMore={historyLoadingMore}
-                    historyRefreshing={historyRefreshing}
-                    onLoadMoreHistory={loadMoreHistory}
-                    onRefreshHistory={refreshHistory}
-                    isStreaming={isStreaming}
-                    liveSpeakers={liveSpeakers}
-                    thinkingStartedAt={thinkingStartedAt}
-                    sessionKey={activeThreadId ?? undefined}
-                    onRegenerate={handleRegenerate}
-                    onDisableStreamUsage={handleDisableStreamUsage}
-                    onEditUserMessage={handleEditUserMessage}
-                    onWithdrawSteer={handleWithdrawSteer}
-                    onForkAssistantMessage={handleForkAssistantMessage}
-                    forkDisabled={forkDisabled}
-                    forkDisabledHint={forkDisabledHint}
-                    onAcpPermissionSelect={handleAcpPermissionSelect}
-                    onHitlDecision={handleHitlDecision}
-                    onTurnRailVisibilityChange={setTurnRailVisible}
-                    onOpenBrowser={hasBrowserTool ? openBrowserTab : undefined}
-                    onEditFile={
-                      !sharedExpertViewer && panelFilePaths.length > 0
-                        ? openFileList
-                        : undefined
-                    }
-                  />
+                    threadId={activeThreadId}
+                    onRefresh={() => void refreshHistory()}
+                  >
+                    <MessageList
+                      messages={messages}
+                      agentId={resolvedAgentId}
+                      composerLookups={composerLookups}
+                      loading={awaitingThreadHistory}
+                      historyHasMore={historyHasMore}
+                      historyLoadingMore={historyLoadingMore}
+                      historyRefreshing={historyRefreshing}
+                      onLoadMoreHistory={loadMoreHistory}
+                      onRefreshHistory={refreshHistory}
+                      isStreaming={isStreaming}
+                      liveSpeakers={liveSpeakers}
+                      thinkingStartedAt={thinkingStartedAt}
+                      sessionKey={activeThreadId ?? undefined}
+                      onRegenerate={handleRegenerate}
+                      onDisableStreamUsage={handleDisableStreamUsage}
+                      onEditUserMessage={handleEditUserMessage}
+                      onWithdrawSteer={handleWithdrawSteer}
+                      onForkAssistantMessage={handleForkAssistantMessage}
+                      forkDisabled={forkDisabled}
+                      forkDisabledHint={forkDisabledHint}
+                      onAcpPermissionSelect={handleAcpPermissionSelect}
+                      onHitlDecision={handleHitlDecision}
+                      onTurnRailVisibilityChange={setTurnRailVisible}
+                      onOpenBrowser={
+                        hasBrowserTool ? openBrowserTab : undefined
+                      }
+                      onEditFile={
+                        !sharedExpertViewer && panelFilePaths.length > 0
+                          ? openFileList
+                          : undefined
+                      }
+                    />
+                  </FeedbackProvider>
                 </ChatAgentProfileProvider>
               )}
             </div>

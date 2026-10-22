@@ -37,6 +37,7 @@ from octop.infra.agents.teams.service import _user_may_use_member, is_team_agent
 from octop.infra.agents.threads.artifact import artifact_path_allowed, extract_artifact_paths
 from octop.infra.db.repos.agents import AgentRow
 from octop.infra.gateway.media.tool_media import tool_name_base
+from octop.infra.history.answer_text import join_answer_parts, visible_text
 from octop.infra.history.projection import (
     live_message_inputs,
     message_inputs,
@@ -74,11 +75,13 @@ _HOST_IDLE_POLL_SEC = 0.05
 _HOST_IDLE_WAIT_SEC = 45.0
 _MEMBER_HITL_WAIT_SEC = 30 * 60
 _RELAY_CHUNK_TYPES = frozenset(
-    {"token", "reasoning", "tool_call_chunk", "tool_result", "error", "attachment"}
+    {"token", "reasoning", "tool_call_chunk", "tool_result", "error", "attachment", "state_update"}
 )
 _STREAM_SPEAKER_TYPES = frozenset(
     {
         "token",
+        "state_update",
+        "answer_identity",
         "reasoning",
         "tool_call_chunk",
         "tool_result",
@@ -570,8 +573,11 @@ class TeamManager:
                 text = _assistant_text(msg)
                 if text:
                     break
-        if text:
+        message_id = (
             self._persist_room_assistant(room_thread_id, speaker_id, text, wrapup=True)
+            if text
+            else None
+        )
         live = bool(result.get("team_live_streamed"))
         # Some models finish wrap-up in checkpoint/values only — no token
         # frames. Push the final text so the open room still sees it.
@@ -581,8 +587,11 @@ class TeamManager:
                 speaker_id,
                 text,
                 wrapup=True,
+                message_id=message_id,
             )
             live = self._thread_is_watched(room_thread_id)
+        elif message_id:
+            await self._push_answer_identity(room_thread_id, speaker_id, message_id, wrapup=True)
         if room_thread_id and text and live:
             self._live_host_replies.add(room_thread_id)
         return result
@@ -624,8 +633,34 @@ class TeamManager:
         if not room or not text:
             return
         await self._push_room_to_channels(room, speaker, text)
+        message_id = (
+            str(final.get("id") or "")
+            if isinstance(final, dict)
+            else str(getattr(final, "id", "") or "")
+        )
         if not live_streamed:
-            await self._push_room_snapshot(room, speaker, text)
+            parts = []
+            for msg in stamped:
+                kwargs = (
+                    msg.get("additional_kwargs", {})
+                    if isinstance(msg, dict)
+                    else getattr(msg, "additional_kwargs", {})
+                )
+                if (
+                    not _message_is_assistant(msg)
+                    or _message_tool_calls(msg)
+                    or kwargs.get("octop_stream_error")
+                ):
+                    continue
+                content = (
+                    msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
+                )
+                parts.append(visible_text(content))
+            await self._push_room_snapshot(
+                room, speaker, join_answer_parts(parts), message_id=message_id or None
+            )
+        elif message_id:
+            await self._push_answer_identity(room, speaker, message_id)
 
     def stamp_host_runtime(self, request: dict[str, Any], agent_id: str) -> None:
         """Force the host turn onto async ``ask_agent`` (inbox), not sync."""
@@ -1192,10 +1227,10 @@ class TeamManager:
         text: str,
         *,
         wrapup: bool = False,
-    ) -> None:
+    ) -> str | None:
         body = (text or "").strip()
         if not thread_id or not body or self._thread_message_repo is None:
-            return
+            return None
         self._ensure_projection(thread_id)
         extra: dict[str, Any] = {"speaker_agent_id": speaker_id}
         if wrapup:
@@ -1206,10 +1241,11 @@ class TeamManager:
             additional_kwargs=extra,
         )
         try:
-            self._thread_message_repo.append_if_ready(
+            appended = self._thread_message_repo.append_if_ready(
                 thread_id,
-                message_inputs([msg], dedupe_missing_ids=True),
+                live_message_inputs([msg], dedupe_missing_ids=True),
             )
+            return msg.id if appended else None
         except Exception:
             logger.warning(
                 "failed to persist team room text thread=%s speaker=%s",
@@ -1217,6 +1253,7 @@ class TeamManager:
                 speaker_id,
                 exc_info=True,
             )
+        return None
 
     async def _push_session_channel(self, session: SessionRow, text: str) -> None:
         if self._gateway is None:
@@ -1296,13 +1333,31 @@ class TeamManager:
         body = (text or "").strip()
         if not thread_id or not body:
             return
-        self._persist_room_assistant(thread_id, speaker_id, body, wrapup=True)
+        message_id = self._persist_room_assistant(thread_id, speaker_id, body, wrapup=True)
         await self._push_room_snapshot(
             thread_id,
             speaker_id,
             body,
             wrapup=True,
+            message_id=message_id,
         )
+
+    async def _push_answer_identity(
+        self, thread_id: str, speaker_id: str, message_id: str, *, wrapup: bool = False
+    ) -> None:
+        hub = getattr(self._gateway, "ws_hub", None) if self._gateway is not None else None
+        if hub is not None:
+            await hub.push_to_thread(
+                thread_id,
+                stamp_stream_speaker(
+                    {
+                        "type": "answer_identity",
+                        "message_id": message_id,
+                        **({"team_wrapup": True} if wrapup else {}),
+                    },
+                    speaker_id,
+                ),
+            )
 
     async def _push_room_snapshot(
         self,
@@ -1311,6 +1366,7 @@ class TeamManager:
         text: str,
         *,
         wrapup: bool = False,
+        message_id: str | None = None,
     ) -> None:
         body = (text or "").strip()
         if not thread_id or not body:
@@ -1323,7 +1379,12 @@ class TeamManager:
             await hub.push_to_thread(
                 thread_id,
                 stamp_stream_speaker(
-                    {"type": "token", "content": body, **extra},
+                    {
+                        "type": "token",
+                        "content": body,
+                        **extra,
+                        **({"message_id": message_id} if message_id else {}),
+                    },
                     speaker_id,
                 ),
             )

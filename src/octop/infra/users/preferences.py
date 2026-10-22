@@ -35,6 +35,7 @@ SIDEBAR_NAV_KEYS = frozenset(
         "remote-desktop",
         "acp",
         "admin-users",
+        "admin-feedback",
         "models",
         "admin-storage",
         "admin-plugins",

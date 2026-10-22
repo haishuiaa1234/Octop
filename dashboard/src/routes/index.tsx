@@ -22,6 +22,7 @@ const ModelsPage = lazy(() => import("../pages/Settings/Models"));
 
 // Lazy-loaded pages — Admin
 const OctopAdminUsersPage = lazy(() => import("../pages/Admin/Users"));
+const AdminFeedbackPage = lazy(() => import("../pages/Admin/Feedback"));
 const AdminSecurityPage = lazy(() => import("../pages/Settings/Security"));
 const AdvancedSettingsPage = lazy(
   () => import("../pages/Settings/AdvancedSettings"),
@@ -93,6 +94,7 @@ export const pathToKey: Record<string, string> = {
   "/admin/models": "models",
   // Admin
   "/admin/users": "admin-users",
+  "/admin/feedback": "admin-feedback",
   "/admin/websites": "admin-websites",
   "/admin/backend": "admin-storage",
   "/admin/plugins": "admin-plugins",
@@ -228,6 +230,7 @@ export const routeConfigs: RouteConfig[] = [
 
   // Admin (RequirePermission wrapper applied in MainLayout)
   { path: "/admin/users", element: <OctopAdminUsersPage /> },
+  { path: "/admin/feedback", element: <AdminFeedbackPage /> },
   {
     path: "/admin/sso",
     element: <Navigate to="/admin/users?tab=oidc" replace />,

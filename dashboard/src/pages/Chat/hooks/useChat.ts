@@ -412,6 +412,7 @@ function convertCallEntries(entries: CallEntry[]): ChatMessage[] {
 
     return {
       id: entry.message_id || entry.entry_index || `call-${index}`,
+      feedbackMessageId: entry.message_id || undefined,
       role:
         entry.role === "user"
           ? "user"

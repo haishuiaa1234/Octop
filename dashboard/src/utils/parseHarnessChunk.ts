@@ -11,6 +11,7 @@
 
 export interface TokenChunk {
   type: "token";
+  message_id?: string;
   /** Graph node that produced the chunk (e.g. ``agent``, ``tool``). */
   node: string;
   /** Streamed text fragment. Concatenate with prior tokens of the same node. */
@@ -29,6 +30,13 @@ export interface ReasoningChunk {
   content: string;
   /** Team-room speaker when this reasoning was fanned in from another agent. */
   agent_id?: string;
+}
+
+export interface AnswerIdentityChunk {
+  type: "answer_identity";
+  message_id: string;
+  agent_id?: string;
+  team_wrapup?: boolean;
 }
 
 export interface ToolCallChunk {
@@ -58,6 +66,7 @@ export interface ToolResultChunk {
 
 export interface StateUpdateChunk {
   type: "state_update";
+  agent_id?: string;
   node: string;
   data: unknown;
 }
@@ -128,6 +137,7 @@ export interface AttachmentChunk {
 }
 
 export type HarnessChunk =
+  | AnswerIdentityChunk
   | TokenChunk
   | ReasoningChunk
   | ToolCallChunk
@@ -179,9 +189,18 @@ export function parseHarnessChunk(line: string): HarnessChunk | null {
   const agentId = optionalAgentId(obj);
 
   switch (t) {
+    case "answer_identity":
+      return {
+        type: "answer_identity",
+        message_id: typeof obj.message_id === "string" ? obj.message_id : "",
+        agent_id: agentId,
+        team_wrapup: obj.team_wrapup === true,
+      };
     case "token":
       return {
         type: "token",
+        message_id:
+          typeof obj.message_id === "string" ? obj.message_id : undefined,
         node: typeof obj.node === "string" ? obj.node : "agent",
         content: typeof obj.content === "string" ? obj.content : "",
         agent_id: agentId,
@@ -233,6 +252,7 @@ export function parseHarnessChunk(line: string): HarnessChunk | null {
     case "state_update":
       return {
         type: "state_update",
+        agent_id: agentId,
         node: typeof obj.node === "string" ? obj.node : "",
         data: obj.data,
       };

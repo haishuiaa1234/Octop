@@ -65,6 +65,7 @@ export const SIDEBAR_NAV_KEYS = [
   "remote-desktop",
   "acp",
   "admin-users",
+  "admin-feedback",
   "models",
   "admin-storage",
   "admin-plugins",
@@ -119,6 +120,7 @@ export const SIDEBAR_GROUPED_NAV_KEYS = [
   "remote-desktop",
   "acp",
   "admin-users",
+  "admin-feedback",
   "models",
   "admin-storage",
   "admin-plugins",
@@ -266,6 +268,14 @@ export function buildNavSections(
   }
 
   const adminItems: NavItem[] = [];
+  if (navAllowed(user, "admin-feedback")) {
+    adminItems.push({
+      key: "admin-feedback",
+      path: "/admin/feedback",
+      icon: <MessageSquareText size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "feedback.adminTitle",
+    });
+  }
   if (navAllowed(user, "admin-users")) {
     adminItems.push({
       key: "admin-users",

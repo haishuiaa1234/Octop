@@ -19,6 +19,7 @@ import {
   isWriteTodosToolName,
 } from "../../../utils/parseWriteTodos";
 import MessageBubble from "./MessageBubble";
+import AnswerFeedback from "./AnswerFeedback";
 import { ToolMediaStrip } from "./ToolMediaStrip";
 import {
   TurnProcessBlocks,
@@ -369,6 +370,16 @@ export default function AssistantTurnView({
             shellCommandDisabled={shellCommandDisabled}
             shellCommandDisabledTitle={shellCommandDisabledTitle}
           />
+          {!turnStreaming &&
+            !hasPendingHitl &&
+            !trailingSplit.errorMessages?.length && (
+              <div className={styles.turnInset}>
+                <AnswerFeedback
+                  key={trailingSplit.answerMessage.id}
+                  messageId={trailingSplit.answerMessage.feedbackMessageId}
+                />
+              </div>
+            )}
         </div>
       ) : null}
       <TurnErrorBubbles

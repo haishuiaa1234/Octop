@@ -49,6 +49,7 @@ import {
   promoteAskUserToolMessage,
 } from "../utils/pendingHitl";
 import { frameBelongsToThread } from "./frameThread";
+import { feedbackIdFromUpdate } from "../utils/feedbackIdentity";
 import {
   MAX_STREAM_RESUME_ATTEMPTS,
   STREAM_STALE_WITHOUT_SOCKET_MS,
@@ -1196,6 +1197,28 @@ function handleHarnessChunk(
     touchStreamActivity(sessionId);
   }
   switch (chunk.type) {
+    case "answer_identity": {
+      const index = chunk.team_wrapup
+        ? findWrapupTextToContinue(
+            state.messages,
+            speaker,
+            sessionHostAgentId(state, sessionId),
+          )
+        : findSpeakerTextToContinue(
+            state.messages,
+            speaker,
+            sessionHostAgentId(state, sessionId),
+            continueTokenOpts(state),
+          );
+      if (index >= 0 && chunk.message_id) {
+        state.messages = state.messages.map((message, i) =>
+          i === index
+            ? { ...message, feedbackMessageId: chunk.message_id }
+            : message,
+        );
+      }
+      break;
+    }
     case "token": {
       const snapshot = Boolean(chunk.team_snapshot);
       // Snapshots are complete wall copies — never leave the speaker "live".
@@ -1207,6 +1230,27 @@ function handleHarnessChunk(
         snapshot,
         Boolean(chunk.team_wrapup),
       );
+      if (chunk.message_id && chunk.content) {
+        const index = chunk.team_wrapup
+          ? findWrapupTextToContinue(
+              state.messages,
+              speaker,
+              sessionHostAgentId(state, sessionId),
+            )
+          : findSpeakerTextToContinue(
+              state.messages,
+              speaker,
+              sessionHostAgentId(state, sessionId),
+              continueTokenOpts(state),
+            );
+        if (index >= 0) {
+          state.messages = state.messages.map((message, i) =>
+            i === index
+              ? { ...message, feedbackMessageId: chunk.message_id }
+              : message,
+          );
+        }
+      }
       if (snapshot) clearSpeakerLive(state, speaker);
       break;
     }
@@ -1338,7 +1382,26 @@ function handleHarnessChunk(
       }
       break;
     }
-    case "state_update":
+    case "state_update": {
+      updateContextUsageFromChunk(state, chunk);
+      const index = findSpeakerTextToContinue(
+        state.messages,
+        speaker,
+        sessionHostAgentId(state, sessionId),
+        continueTokenOpts(state),
+      );
+      if (index >= 0) {
+        const feedbackMessageId = feedbackIdFromUpdate(
+          chunk.data,
+          state.messages[index],
+        );
+        if (feedbackMessageId)
+          state.messages = state.messages.map((message, i) =>
+            i === index ? { ...message, feedbackMessageId } : message,
+          );
+      }
+      break;
+    }
     case "state_snapshot":
       updateContextUsageFromChunk(state, chunk);
       break;
