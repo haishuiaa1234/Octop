@@ -712,13 +712,38 @@ class Gateway:
         if row.kind == "weixin" and response_mode == "stream":
             processor = wrap_weixin_stream_processor(processor)
         manager = self._require_channel_manager()
-        await manager.add_channel(
-            row.kind,
-            config,
-            tenant_id=row.agent_id,
-            channel_id=row.channel_id,
-            processor=processor,
-        )
+        if row.kind == "wecom":
+            from octop_gateway.channels.wecom import WeComConfig
+
+            from octop.infra.gateway.process.message_keys import resolve_user_id_for_message
+            from octop.infra.gateway.wecom import WeComChannel
+            from octop.infra.utils.locale import resolve_user_locale
+
+            wecom_config = WeComConfig.from_dict(config)
+            if missing := wecom_config.missing_credentials():
+                raise ChannelCredentialsError(row.kind, missing)
+            await manager.add_channel(
+                WeComChannel(
+                    processor,
+                    config=wecom_config,
+                    tenant_id=row.agent_id,
+                    channel_id=row.channel_id,
+                    locale_resolver=lambda message: resolve_user_locale(
+                        user_repo=self._repos.user_repo,
+                        user_id=resolve_user_id_for_message(message, agent_owner_id=row.user_id),
+                        channel_type="wecom",
+                        metadata=message.metadata,
+                    ),
+                )
+            )
+        else:
+            await manager.add_channel(
+                row.kind,
+                config,
+                tenant_id=row.agent_id,
+                channel_id=row.channel_id,
+                processor=processor,
+            )
         registered = manager.get_channel(row.channel_id)
         if registered is not None:
             backend = media_backend_for_agent(self._agent_manager, row.agent_id)
