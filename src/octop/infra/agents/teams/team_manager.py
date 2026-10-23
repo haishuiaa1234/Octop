@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 from octop_harness.messages import extract_call_response
+from octop_harness.plugins import collect_plugin_tool_configs
 from octop_harness.teams.inbox import InboxMessage
 from octop_harness.teams.processor import ReplyEvent
 from octop_harness.teams.util import (
@@ -145,7 +146,13 @@ class TeamManager:
         session_key = None
         uid = _octop_user_id(call.user_id)
         group = self._is_group_dispatch(call)
-        extra = self._member_runtime(call)
+        extra = dict(self._member_runtime(call) or {})
+        plugins = self._agent_manager.get_config(call.to_agent_id).get("plugins")
+        # Peer calls bypass AgentManager.stream/call, which normally inject these.
+        # An explicit empty mapping also prevents inheriting the caller's config.
+        extra["plugin_tool_configs"] = collect_plugin_tool_configs(
+            plugins if isinstance(plugins, dict) else None
+        )
         question = ""
         dispatch_message = None
         if group:

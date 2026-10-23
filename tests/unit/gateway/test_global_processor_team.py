@@ -576,6 +576,82 @@ async def test_ensure_projection_leaves_pending_threads_with_history(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("child_plugins", ["configured", None, "invalid"])
+async def test_sync_peer_uses_callee_plugin_config(
+    processor_env: dict, child_plugins: str | None
+) -> None:
+    from langchain_core.runnables.config import ensure_config, var_child_runnable_config
+    from octop_harness.teams.team_manager import TeamManager as HarnessTeamManager
+
+    processor = processor_env["processor"]
+    parent_tools = {"query_data": {"database": "parent-only"}}
+    child_tools = {"query_data": {"database": "child-only"}}
+    plugins = {"data-tools": {"tools": {"query_data": {"config": child_tools["query_data"]}}}}
+    configs = {
+        "parent": {
+            "plugins": {
+                "data-tools": {"tools": {"query_data": {"config": parent_tools["query_data"]}}}
+            }
+        },
+        "child": {"plugins": plugins if child_plugins == "configured" else child_plugins},
+    }
+    processor._agent_manager.get_config.side_effect = configs.__getitem__
+    seen = []
+
+    async def call(request):
+        seen.append(ensure_config(request.to_runnable_config()))
+        return {"messages": []}
+
+    entry = SimpleNamespace(
+        agent_id="child",
+        metadata={"user_id": 1, "display_name": "Child"},
+        config=None,
+        agent=SimpleNamespace(call=call),
+    )
+    harness = HarnessTeamManager(SimpleNamespace(get=lambda aid: entry))
+    harness.bind_peer_session(prepare=processor.prepare_peer_session)
+    parent_config = {"configurable": {"plugin_tool_configs": parent_tools}}
+    token = var_child_runnable_config.set(parent_config)
+    try:
+        result = await harness.call_peer(
+            from_agent_id="parent",
+            to_agent_id="child",
+            user_id=1,
+            message="query data",
+            source_thread_id="thr_parent",
+            session_key=processor_env["parent_sk"],
+        )
+    finally:
+        var_child_runnable_config.reset(token)
+
+    assert result.mode == "sync"
+    assert result.agent_id == "child"
+    assert result.thread_id == "thr_parent~child"
+    expected = child_tools if child_plugins == "configured" else {}
+    assert seen[0]["configurable"]["plugin_tool_configs"] == expected
+    assert parent_config["configurable"]["plugin_tool_configs"] == parent_tools
+    processor._agent_manager.get_config.assert_called_once_with("child")
+
+    # A later delegation must read the current target config, not a cached copy.
+    configs["child"] = {
+        "plugins": {
+            "data-tools": {"tools": {"query_data": {"config": {"database": "updated-child"}}}}
+        }
+    }
+    await harness.call_peer(
+        from_agent_id="parent",
+        to_agent_id="child",
+        user_id=1,
+        message="query again",
+        source_thread_id="thr_parent",
+        session_key=processor_env["parent_sk"],
+    )
+    assert seen[1]["configurable"]["plugin_tool_configs"] == {
+        "query_data": {"database": "updated-child"}
+    }
+
+
+@pytest.mark.asyncio
 async def test_prepare_peer_session_creates_callee_thread_without_rebind(
     processor_env: dict,
 ) -> None:
@@ -757,6 +833,7 @@ async def test_prepare_team_dispatch_tracks_job_and_forces_sync(
             "peer_invoke_mode": "sync",
             "team_host_agent_id": "host",
             "team_peers": ["other"],
+            "plugin_tool_configs": {},
         }
 
 
