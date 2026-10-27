@@ -317,14 +317,11 @@ export const AgentCard = memo(function AgentCard({
               <div className={styles.agentCard2Name}>{agent.name}</div>
               <RemoteExpertHint agent={agent} />
             </div>
-            {agent.is_shared && (
+            {agent.is_shared && agent.owner_username && (
               <div className={styles.agentShareMeta}>
-                <Tag color="blue">{t("experts.share.badge")}</Tag>
-                {agent.owner_username && (
-                  <span className={styles.agentShareCreator}>
-                    {t("experts.share.creator", { name: agent.owner_username })}
-                  </span>
-                )}
+                <span className={styles.agentShareCreator}>
+                  {t("experts.share.creator", { name: agent.owner_username })}
+                </span>
               </div>
             )}
             <div className={styles.agentCardIdRow}>
@@ -362,6 +359,9 @@ export const AgentCard = memo(function AgentCard({
                 value={agent.persona_mbti}
                 onClick={isOwner ? () => setMbtiCatalogOpen(true) : undefined}
               />
+              {agent.is_shared && (
+                <Tag color="blue">{t("experts.share.badge")}</Tag>
+              )}
             </div>
           </div>
 
