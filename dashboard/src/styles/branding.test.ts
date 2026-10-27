@@ -95,14 +95,18 @@ describe("Geneseeq workbench identity", () => {
   });
 
   it.each(["Header", "Sidebar"])(
-    "keeps %s branding free of version numbers without removing update alerts",
+    "keeps %s branding free of version numbers and sidebar update buttons",
     (layout) => {
       const source = readFileSync(
         resolve(dashboard, "src/layouts", `${layout}.tsx`),
         "utf8",
       );
       expect(source).not.toContain("CurrentVersionBadge");
-      expect(source).toContain("<AppVersionBadge");
+      if (layout === "Sidebar") {
+        expect(source).not.toContain("AppVersionBadge");
+      } else {
+        expect(source).toContain("<AppVersionBadge");
+      }
     },
   );
 
