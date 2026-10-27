@@ -1465,6 +1465,7 @@
     "continuing": "Continuing",
     "generating": "Generating",
     "generatingWithElapsed": "Generating · {{seconds}}s",
+    "responseDuration": "Response time: {{seconds}} s",
     "membersResponding": "Members responding",
     "memberResponding": "{{name}} is responding",
     "membersRespondingNamed": "{{names}} are responding",

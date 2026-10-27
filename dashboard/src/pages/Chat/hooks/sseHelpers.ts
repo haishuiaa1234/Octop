@@ -81,6 +81,8 @@ export interface ChatMessage {
   toolData?: ToolCallData;
   hitlData?: HitlRequestData;
   usage?: TokenUsage;
+  /** Server-recorded duration of the logical response turn, in milliseconds. */
+  responseTimeMs?: number;
   metadata?: MessageMetadata;
   errorInfo?: ProcessErrorInfo;
   status?: "streaming" | "done" | "error";

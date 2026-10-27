@@ -43,7 +43,7 @@ describe("chatGeneratingPhase", () => {
     });
   });
 
-  it("hides elapsed once an assistant bubble exists", () => {
+  it("keeps elapsed visible while an assistant bubble is still streaming", () => {
     expect(
       chatGeneratingPhase({
         isStreaming: true,
@@ -51,7 +51,7 @@ describe("chatGeneratingPhase", () => {
       }),
     ).toEqual({
       showFooter: true,
-      showElapsed: false,
+      showElapsed: true,
       membersOnly: false,
     });
   });

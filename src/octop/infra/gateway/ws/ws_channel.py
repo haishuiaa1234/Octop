@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 from typing import Any
 
 from octop_gateway.channel import BaseChannel, MessageProcessor
@@ -163,6 +164,7 @@ class WebSocketChannel(BaseChannel):
         )
         self._hub.mark_turn_active(thread_id)
         failed = False
+        turn_started_at = time.monotonic()
         try:
             await self._hub.push_to_thread(
                 thread_id,
@@ -320,15 +322,20 @@ class WebSocketChannel(BaseChannel):
                 # survives the approval pause (drains after SSE resume) — the
                 # dashboard keeps its chips instead of clearing them.
                 hitl_parked = self._steer.is_hitl_paused(thread_id)
+                response_time_ms = max(0, int(round((time.monotonic() - turn_started_at) * 1000)))
+                ended_frame: dict[str, Any] = {
+                    "type": "turn.ended",
+                    "turn_id": turn_id,
+                    "thread_id": thread_id,
+                    "failed": failed or None,
+                }
+                if hitl_parked:
+                    ended_frame["hitl_paused"] = True
+                else:
+                    ended_frame["response_time_ms"] = response_time_ms
                 await self._hub.push_to_thread(
                     thread_id,
-                    {
-                        "type": "turn.ended",
-                        "turn_id": turn_id,
-                        "thread_id": thread_id,
-                        "failed": failed or None,
-                        **({"hitl_paused": True} if hitl_parked else {}),
-                    },
+                    ended_frame,
                 )
             except Exception:
                 logger.exception("websocket failed to deliver turn.ended thread=%s", thread_id)

@@ -20,7 +20,7 @@ export function shouldShowGenerating(opts: {
 
 /**
  * Footer + elapsed timer phase for the unified generating indicator.
- * Elapsed only while we are still waiting for the first assistant bubble.
+ * Elapsed while the logical response is still active.
  */
 export function chatGeneratingPhase(opts: {
   isStreaming: boolean;
@@ -36,10 +36,6 @@ export function chatGeneratingPhase(opts: {
   const membersOnly = Boolean(
     showFooter && !opts.isStreaming && opts.hasLiveSpeakers,
   );
-  const showElapsed = Boolean(
-    showFooter &&
-      !membersOnly &&
-      (!opts.lastMessageRole || opts.lastMessageRole === "user"),
-  );
+  const showElapsed = Boolean(showFooter && !membersOnly);
   return { showFooter, showElapsed, membersOnly };
 }

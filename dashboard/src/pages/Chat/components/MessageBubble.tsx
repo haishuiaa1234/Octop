@@ -689,6 +689,15 @@ function MessageBubble({
   const showUserComposerTags =
     isUser && !isEditing && hasUserComposerTags(message.composerContext);
   const isStreaming = message.status === "streaming";
+  const responseDurationText =
+    !isUser &&
+    !isStreaming &&
+    typeof message.responseTimeMs === "number" &&
+    Number.isFinite(message.responseTimeMs)
+      ? t("chat.responseDuration", {
+          seconds: (Math.max(0, message.responseTimeMs) / 1000).toFixed(1),
+        })
+      : null;
   const hasToolData = !!message.toolData;
   const isError = message.status === "error";
   const errorSource = isError
@@ -1012,6 +1021,7 @@ function MessageBubble({
           !hasToolData &&
           (message.timestamp > 0 ||
             usageParts.length > 0 ||
+            Boolean(responseDurationText) ||
             (isUser &&
               !isEditing &&
               Boolean(
@@ -1115,6 +1125,9 @@ function MessageBubble({
               )}
               {usageParts.length > 0 && (
                 <div className={styles.msgUsage}>{usageParts.join(" / ")}</div>
+              )}
+              {responseDurationText && (
+                <div className={styles.msgUsage}>{responseDurationText}</div>
               )}
             </div>
           )}

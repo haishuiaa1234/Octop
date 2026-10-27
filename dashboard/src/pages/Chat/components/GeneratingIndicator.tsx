@@ -3,7 +3,7 @@ import { useElapsedSince } from "../../../hooks/useElapsedSeconds";
 import styles from "../index.module.less";
 
 interface GeneratingIndicatorProps {
-  /** When set, appends elapsed seconds (useful while waiting for the first token). */
+  /** When set, appends elapsed seconds for the active response. */
   startedAt?: number | null;
   showElapsed?: boolean;
   /**

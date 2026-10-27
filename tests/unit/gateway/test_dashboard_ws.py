@@ -244,6 +244,8 @@ async def test_ws_channel_streams_chunks() -> None:
     assert {"type": "done", "thread_id": "thread-1"} in frames
     assert frames[-1]["type"] == "turn.ended"
     assert frames[-1]["thread_id"] == "thread-1"
+    assert isinstance(frames[-1]["response_time_ms"], int)
+    assert frames[-1]["response_time_ms"] >= 0
     assert hub.is_turn_active("thread-1") is False
 
 
@@ -912,6 +914,7 @@ async def test_ws_channel_hitl_pause_parks_steers_for_post_resume_drain() -> Non
     assert steer.has_pending("thread-1") is True
     ended = [f for f in frames if f["type"] == "turn.ended"]
     assert len(ended) == 1 and ended[0].get("hitl_paused") is True
+    assert "response_time_ms" not in ended[0]
     taken = steer.take_hitl_pending("thread-1")
     assert taken is not None
     bundle, seq = taken

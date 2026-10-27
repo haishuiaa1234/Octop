@@ -1465,6 +1465,7 @@
     "continuing": "继续生成中",
     "generating": "生成中",
     "generatingWithElapsed": "生成中 · {{seconds}}s",
+    "responseDuration": "响应时间：{{seconds}} 秒",
     "membersResponding": "成员回答中",
     "memberResponding": "{{name}} 正在回答",
     "membersRespondingNamed": "{{names}} 正在回答",

@@ -3469,6 +3469,29 @@ function applySteerProtocolFrame(
       // so a committed row can still be withdrawn.
       return true;
     }
+    const responseTimeMs = data.response_time_ms;
+    if (
+      typeof responseTimeMs === "number" &&
+      Number.isFinite(responseTimeMs) &&
+      responseTimeMs >= 0
+    ) {
+      for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+        const message = state.messages[index];
+        if (
+          message.role !== "assistant" ||
+          message.toolData ||
+          message.id.startsWith("steer:")
+        ) {
+          continue;
+        }
+        state.messages = [
+          ...state.messages.slice(0, index),
+          { ...message, responseTimeMs },
+          ...state.messages.slice(index + 1),
+        ];
+        break;
+      }
+    }
     state.activeTurnId = null;
     dropOptimisticSteerMessages(state, steerClientIds(data, state));
     state.pendingSteers = [];

@@ -63,6 +63,18 @@ function assistant(extra: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe("MessageBubble team speaker chrome", () => {
+  it("shows the completed response duration in seconds", () => {
+    render(
+      <MessageBubble
+        message={assistant({ responseTimeMs: 1234 })}
+        agentId="host"
+        groupPosition="only"
+      />,
+    );
+
+    expect(screen.getByText("chat.responseDuration")).toBeInTheDocument();
+  });
+
   it("uses private member summaries without enabling profile management", () => {
     render(
       <ChatAgentProfileProvider
