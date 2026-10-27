@@ -101,13 +101,20 @@ Usage: octop run [OPTIONS]
 Options:
   --host TEXT                 Override OCTOP_BIND_HOST.
   --port INTEGER RANGE        Override OCTOP_PORT (0-65535, 0 = OS-assigned).
-  --reload / --no-reload      Enable uvicorn auto-reload (dev only).
+  --reload                    Restart on backend source changes (dev only).
   --ssl / --no-ssl            Enable HTTPS with a self-signed cert (or a real one).
   --certfile PATH             TLS certificate (PEM).
   --keyfile PATH              TLS private key (PEM).
   --log-level [debug|info|warning|error]
   -h, --help                  Show this message and exit.
 ```
+
+With `--reload`, a supervisor restarts the entire backend when Python or JSON
+files in the installed Octop package change. Source checkouts must be installed
+in editable mode. The built dashboard is excluded; use Vite for frontend HMR.
+Reload mode uses one worker and interrupts active requests, chats, and runtime
+tasks during each restart. The existing HTTP/TLS listener configuration is
+recreated in the child process. Without `--reload`, startup is unchanged.
 
 ## `octop service`
 

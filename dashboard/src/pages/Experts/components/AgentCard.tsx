@@ -317,13 +317,6 @@ export const AgentCard = memo(function AgentCard({
               <div className={styles.agentCard2Name}>{agent.name}</div>
               <RemoteExpertHint agent={agent} />
             </div>
-            {agent.is_shared && agent.owner_username && (
-              <div className={styles.agentShareMeta}>
-                <span className={styles.agentShareCreator}>
-                  {t("experts.share.creator", { name: agent.owner_username })}
-                </span>
-              </div>
-            )}
             <div className={styles.agentCardIdRow}>
               <Tooltip title={t("experts.copyAgentId")}>
                 <button
@@ -334,12 +327,25 @@ export const AgentCard = memo(function AgentCard({
                   <span className={styles.agentCardIdLabel}>
                     {t("experts.agentId")}
                   </span>
-                  <span className={styles.agentCardIdValue}>
+                  <span
+                    className={styles.agentCardIdValue}
+                    title={agent.agent_id}
+                  >
                     {agent.agent_id}
                   </span>
                   <Copy size={11} className={styles.agentCardIdIcon} />
                 </button>
               </Tooltip>
+              {agent.is_shared && agent.owner_username && (
+                <span
+                  className={styles.agentShareCreator}
+                  title={t("experts.share.creator", {
+                    name: agent.owner_username,
+                  })}
+                >
+                  {t("experts.share.creator", { name: agent.owner_username })}
+                </span>
+              )}
             </div>
             <div className={styles.agentCard2Meta}>
               <div

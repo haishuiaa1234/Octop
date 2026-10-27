@@ -160,7 +160,7 @@ dev:
 	@echo "[dev] Starting frontend and backend dev servers (Ctrl-C to stop both)..."
 	@trap 'kill 0' SIGINT; \
 	(cd $(DASHBOARD_DIR) && npm run dev) & \
-	($(RUN) octop run) & \
+	($(RUN) octop run --reload) & \
 	wait
 
 .PHONY: dev-frontend
@@ -169,7 +169,7 @@ dev-frontend:
 
 .PHONY: dev-backend
 dev-backend:
-	$(RUN) octop run
+	$(RUN) octop run --reload
 
 # ─── Online-deps dev (local Octop source + PyPI harness components) ───────────
 # Keeps a dedicated .venv-online alongside .venv. Octop itself is installed

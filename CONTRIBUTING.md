@@ -25,6 +25,28 @@ make check-all        # full stack quality gate
 
 ## Development workflow
 
+`make dev` starts Vite HMR and backend source reload. `make dev-backend`
+enables backend reload on its own. Open the Vite URL (normally port 5173)
+for frontend hot updates; the backend URL serves the built dashboard.
+
+On Windows, run these in two PowerShell terminals from the repository root
+(the example uses backend port 8891; use the same port in both terminals):
+
+```powershell
+# Terminal 1: backend
+uv run octop run --host 127.0.0.1 --port 8891 --reload
+```
+
+```powershell
+# Terminal 2: frontend
+cd dashboard
+$env:VITE_API_PORT = "8891"
+npm.cmd run dev
+```
+
+Saving backend Python or JSON files restarts the service and interrupts active
+requests. Saving frontend files updates the page through Vite without a build.
+
 | Command | Description |
 |---------|-------------|
 | `make install` | Install Python dev dependencies |
@@ -103,6 +125,12 @@ make all              # format-all + 后端 lint / typecheck / test
 make dev-frontend
 make check-all        # 全栈质量门禁
 ```
+
+开发时可用 `make dev` 同时启动前端 HMR 和后端源码监听，或用
+`make dev-backend` 单独启动后端热加载。Windows PowerShell 的双终端命令
+见上方英文部分。浏览器应访问 Vite 地址（默认 `http://localhost:5173`），
+前端 API 代理端口需与后端一致。后端 Python/JSON 变更会重启服务并中断
+执行中的请求；前端修改由 Vite 自动更新，无需反复构建。
 
 ## 分支策略
 

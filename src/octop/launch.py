@@ -6,6 +6,7 @@ import asyncio
 import logging
 import sys
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 from octop.infra.server import OctopServer
@@ -161,4 +162,21 @@ async def run_foreground(
 
 def run_foreground_blocking(**kwargs: Any) -> None:
     """Sync entry for Click commands and tests."""
+    if kwargs.get("reload"):
+        from watchfiles import PythonFilter, run_process
+
+        package_dir = Path(__file__).resolve().parent
+        # Supervise the whole runtime: Server.serve() alone does not activate
+        # uvicorn's reloader, and every restart must recreate domain services.
+        run_process(
+            package_dir,
+            target=run_foreground_blocking,
+            kwargs={**kwargs, "reload": False, "workers": 1},
+            watch_filter=PythonFilter(
+                ignore_paths=[package_dir / "dashboard"],
+                extra_extensions=[".json"],
+            ),
+            sigint_timeout=30,
+        )
+        return
     asyncio.run(run_foreground(**kwargs))
