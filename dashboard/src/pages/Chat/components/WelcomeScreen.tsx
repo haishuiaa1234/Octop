@@ -2,6 +2,8 @@ import { useTranslation } from "react-i18next";
 import { useWelcomeQuickCardsLayout } from "../hooks/useWelcomeQuickCardsLayout";
 import WelcomeQuickCards, { WelcomeQuickCardProbe } from "./WelcomeQuickCards";
 import styles from "../index.module.less";
+import { getDinfectomeMascotSrc } from "../../../assets/mascot";
+import { useServerBrand } from "../../../hooks/useServerBrand";
 
 export interface WelcomeQuickCard {
   title: string;
@@ -31,6 +33,7 @@ export default function WelcomeScreen({
   isTeam = false,
 }: WelcomeScreenProps) {
   const { t } = useTranslation();
+  const brand = useServerBrand();
   const {
     welcomeRef,
     headingRef,
@@ -52,7 +55,11 @@ export default function WelcomeScreen({
           {showMascot && (
             <img
               className={styles.welcomeMascot}
-              src="/shixiaohe-logo.png"
+              src={
+                brand === "dinfectome"
+                  ? getDinfectomeMascotSrc("welcome")
+                  : "/shixiaohe-logo.png"
+              }
               alt={t("chatWelcome.logoAlt")}
               draggable={false}
             />

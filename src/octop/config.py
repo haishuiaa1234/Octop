@@ -127,6 +127,7 @@ class CapabilitiesConfig:
 class OctopConfig:
     bind_host: str = "127.0.0.1"
     port: int = 8088
+    public_base_url: str = ""
     log_level: str = "info"
     access_token_ttl_seconds: int = 86400
     login_max_attempts: int = 5
@@ -135,6 +136,7 @@ class OctopConfig:
     website_sso_http_origins: list[str] = field(default_factory=list)
     default_timezone: str = "Asia/Shanghai"
     enable_dashboard: bool = True
+    brand: str = "default"
     enable_api_docs: bool = False
     history_v2_enabled: bool = False
     require_setup_password: bool = True
@@ -184,6 +186,25 @@ def _parse_website_sso_http_origins(raw: object) -> list[str]:
             raise ValueError(message)
         origins.append(str(parsed).removesuffix("/"))
     return origins
+
+
+def _parse_public_base_url(raw: object) -> str:
+    if raw in (None, ""):
+        return ""
+    message = "config.public_base_url must be an HTTP(S) origin without credentials or path"
+    try:
+        parsed = TypeAdapter(HttpUrl).validate_python(raw)
+    except ValidationError as exc:
+        raise ValueError(message) from exc
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {None, "/"}
+        or parsed.query is not None
+        or parsed.fragment is not None
+    ):
+        raise ValueError(message)
+    return str(parsed).removesuffix("/")
 
 
 def _parse_tls_section(raw: object) -> TlsConfig:
@@ -490,6 +511,8 @@ def load_config(path: Path) -> OctopConfig:
         merged["bind_host"] = env_host
     if env_port is not None:
         merged["port"] = env_port
+    if v := os.environ.get("OCTOP_PUBLIC_BASE_URL"):
+        merged["public_base_url"] = v
     if v := os.environ.get("OCTOP_LOG_LEVEL"):
         merged["log_level"] = v
     if v := os.environ.get("OCTOP_ACCESS_TOKEN_TTL"):
@@ -628,6 +651,7 @@ def load_config(path: Path) -> OctopConfig:
     return OctopConfig(
         bind_host=merged["bind_host"],
         port=int(merged["port"]),
+        public_base_url=_parse_public_base_url(merged.get("public_base_url")),
         log_level=merged["log_level"],
         access_token_ttl_seconds=int(merged["access_token_ttl_seconds"]),
         login_max_attempts=int(merged.get("login_max_attempts", 5)),
@@ -638,6 +662,11 @@ def load_config(path: Path) -> OctopConfig:
         ),
         default_timezone=str(merged.get("default_timezone") or "Asia/Shanghai"),
         enable_dashboard=bool(merged["enable_dashboard"]),
+        brand=(
+            "dinfectome"
+            if os.environ.get("OCTOP_BRAND", merged.get("brand")) == "dinfectome"
+            else "default"
+        ),
         enable_api_docs=bool(merged["enable_api_docs"]),
         history_v2_enabled=_coerce_bool(
             "OCTOP_HISTORY_V2_ENABLED",

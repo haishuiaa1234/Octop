@@ -40,6 +40,7 @@ _JWT_EXEMPT_PREFIXES = (
     "/api/downloads/link/",
 )
 _JWT_EXEMPT_EXACT = (
+    "/api/settings/branding",
     "/api/app-sso/exchange",
     "/api/health",
     "/api/auth/login",

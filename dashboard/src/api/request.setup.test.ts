@@ -82,6 +82,21 @@ describe("setup lockdown handling", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it("allows public branding while setup lockdown is known", async () => {
+    mod.clearSetupRequired();
+    mod.markSetupRequired();
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ brand: "dinfectome" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await expect(mod.request("/settings/branding")).resolves.toEqual({
+      brand: "dinfectome",
+    });
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("does not hard-reload when already on /setup", async () => {
     Object.defineProperty(window, "location", {
       configurable: true,

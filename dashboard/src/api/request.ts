@@ -134,7 +134,11 @@ function handleSetupRequired(): void {
 
 /** Wizard endpoints stay reachable while lockdown is active. */
 function isSetupApiPath(path: string): boolean {
-  return path === "/setup/status" || path.startsWith("/setup/");
+  return (
+    path === "/setup/status" ||
+    path.startsWith("/setup/") ||
+    path === "/settings/branding"
+  );
 }
 
 /**

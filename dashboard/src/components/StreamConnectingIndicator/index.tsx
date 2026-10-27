@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import { SHIXIAOHE_MASCOT_SRC } from "../../assets/mascot";
+import {
+  getDinfectomeMascotSrc,
+  SHIXIAOHE_MASCOT_SRC,
+} from "../../assets/mascot";
+import { useServerBrand } from "../../hooks/useServerBrand";
 import styles from "./StreamConnectingIndicator.module.less";
 
 interface StreamConnectingIndicatorProps {
@@ -23,6 +27,11 @@ export default function StreamConnectingIndicator({
   tone = "default",
   size = "md",
 }: StreamConnectingIndicatorProps) {
+  const brand = useServerBrand();
+  const mascotSrc =
+    brand === "dinfectome"
+      ? getDinfectomeMascotSrc("connecting")
+      : SHIXIAOHE_MASCOT_SRC;
   const rootClass = [
     styles.root,
     tone === "onDark" ? styles.onDark : "",
@@ -35,7 +44,7 @@ export default function StreamConnectingIndicator({
     <div className={rootClass}>
       <img
         className={styles.mascot}
-        src={SHIXIAOHE_MASCOT_SRC}
+        src={mascotSrc}
         alt=""
         aria-hidden
         draggable={false}

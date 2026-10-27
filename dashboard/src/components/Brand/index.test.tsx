@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import zh from "../../locales/zh.json";
 import Brand from ".";
+
+const branding = vi.hoisted(() => ({ brand: "default" }));
+vi.mock("../../hooks/useServerBrand", () => ({
+  useServerBrand: () => branding.brand,
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -13,6 +18,23 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("Brand", () => {
+  beforeEach(() => {
+    branding.brand = "default";
+  });
+
+  it.each(["navigation", "auth", "compact"] as const)(
+    "uses the supplied artwork for dinfectome in %s",
+    (variant) => {
+      branding.brand = "dinfectome";
+      render(<Brand variant={variant} />);
+      expect(screen.getByRole("img")).toHaveAttribute(
+        "src",
+        "/dinfectome-logo.webp",
+      );
+      expect(screen.getByRole("img")).toHaveAttribute("alt", "智能工作台");
+    },
+  );
+
   it("shows the corporate logo and product name in navigation", () => {
     render(<Brand />);
     expect(screen.getByText("智能工作台")).toBeInTheDocument();

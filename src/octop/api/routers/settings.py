@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,25 @@ from octop.infra.utils.user_downloads import (
 )
 
 router = APIRouter()
+
+
+class BrandingSettingsResponse(BaseModel):
+    brand: str = Field(description="Dashboard logo brand: default or dinfectome.")
+
+
+@router.get(
+    "/settings/branding",
+    summary="Public dashboard branding",
+    description="Available before login and initial setup. Returns only the configured logo brand.",
+    response_model=BrandingSettingsResponse,
+)
+async def get_branding_settings(
+    response: Response,
+    server: Any = Depends(get_server),
+) -> BrandingSettingsResponse:
+    cfg: OctopConfig = server.services.config if server.services else server.config
+    response.headers["Cache-Control"] = "no-store"
+    return BrandingSettingsResponse(brand=cfg.brand)
 
 
 class TimezoneSettingsResponse(BaseModel):

@@ -280,6 +280,7 @@
           <img
             class="octop-boot-logo"
             src="/geneseeq-icon-192.png"
+            id="octop-boot-logo"
             alt=""
             width="60"
             height="60"
@@ -301,6 +302,22 @@
           ).toLowerCase();
           if (lang.indexOf("zh") === 0) el.textContent = "加载中…";
         } catch (e) {}
+      })();
+    </script>
+    <script>
+      (function () {
+        var logo = document.getElementById("octop-boot-logo");
+        if (!logo || !window.fetch) return;
+        fetch("/api/settings/branding", { cache: "no-store" })
+          .then(function (response) {
+            return response.ok ? response.json() : null;
+          })
+          .then(function (branding) {
+            if (branding && branding.brand === "dinfectome") {
+              logo.src = "/dinfectome-logo.webp";
+            }
+          })
+          .catch(function () {});
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

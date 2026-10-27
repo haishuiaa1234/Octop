@@ -1,4 +1,8 @@
-import { OCTOP_EMPTY_MASCOT_SRC } from "../../assets/mascot";
+import { useServerBrand } from "../../hooks/useServerBrand";
+import {
+  getDinfectomeMascotSrc,
+  OCTOP_EMPTY_MASCOT_SRC,
+} from "../../assets/mascot";
 import styles from "./EmptyState.module.less";
 
 interface OctopEmptyMascotProps {
@@ -16,9 +20,14 @@ export function OctopEmptyMascot({
   className,
   size = 160,
 }: OctopEmptyMascotProps) {
+  const brand = useServerBrand();
+  const src =
+    brand === "dinfectome"
+      ? getDinfectomeMascotSrc("empty")
+      : OCTOP_EMPTY_MASCOT_SRC;
   return (
     <img
-      src={OCTOP_EMPTY_MASCOT_SRC}
+      src={src}
       alt=""
       draggable={false}
       className={className ? `${styles.mascot} ${className}` : styles.mascot}

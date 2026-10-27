@@ -56,6 +56,12 @@ describe("index.html boot theme", () => {
     expect(INDEX_HTML).toMatch(/\.octop-boot-logo\s*\{[^}]*background:\s*#fff/);
   });
 
+  it("can replace the boot logo after the public branding probe", () => {
+    expect(INDEX_HTML).toContain('id="octop-boot-logo"');
+    expect(INDEX_HTML).toContain('fetch("/api/settings/branding"');
+    expect(INDEX_HTML).toContain('logo.src = "/dinfectome-logo.webp"');
+  });
+
   it("keeps a stored light preference over OS dark", () => {
     localStorage.setItem(
       THEME_STORAGE_KEY,

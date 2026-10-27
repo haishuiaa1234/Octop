@@ -4,6 +4,10 @@ export interface OctopTimezoneSettings {
   timezone: string;
 }
 
+export interface OctopBrandingSettings {
+  brand: string;
+}
+
 export interface OctopUploadSettings {
   max_upload_mb: number;
   max_upload_bytes: number;
@@ -47,6 +51,10 @@ export interface CaptchaSettingsPut {
 }
 
 export const octopSettingsApi = {
+  branding: () =>
+    request<OctopBrandingSettings>("/settings/branding", {
+      cache: "no-store",
+    }),
   timezone: () => request<OctopTimezoneSettings>("/settings/timezone"),
   upload: () => request<OctopUploadSettings>("/settings/upload"),
   hitl: () => request<OctopHitlSettings>("/settings/hitl"),
