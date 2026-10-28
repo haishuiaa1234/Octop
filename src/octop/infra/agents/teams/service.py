@@ -287,6 +287,7 @@ class TeamService:
         ids = self.visible_member_ids(row.agent_id)
         member_rows = [self._repos.agent_repo.get(member_id) for member_id in ids]
         owner = self._repos.user_repo.get(row.user_id) if row.user_id is not None else None
+        share_targets = self._repos.agent_share_target_repo.list_for_agent(row.agent_id)
         return {
             "team_id": row.agent_id,
             "agent_id": row.agent_id,
@@ -316,6 +317,12 @@ class TeamService:
                 }
                 for member in member_rows
                 if member is not None
+            ],
+            "shared_user_ids": [
+                int(target.target_id) for target in share_targets if target.target_type == "user"
+            ],
+            "shared_role_ids": [
+                target.target_id for target in share_targets if target.target_type == "role"
             ],
         }
 
@@ -347,7 +354,12 @@ class TeamService:
 
     def list_for_user(self, user_id: int) -> list[dict[str, Any]]:
         owned = self._repos.agent_repo.list_by_user(user_id)
-        shared = self._repos.agent_repo.list_shared(exclude_user_id=user_id)
+        user = self._repos.user_repo.get(user_id)
+        shared = self._repos.agent_repo.list_shared(
+            exclude_user_id=user_id,
+            user_id=user_id,
+            role_id=user.role if user is not None else None,
+        )
         rows = {row.agent_id: row for row in [*owned, *shared]}
         return [
             self.team_payload(row, viewer_user_id=user_id)

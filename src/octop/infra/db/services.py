@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from octop.config import OctopConfig
 from octop.infra.db.pool import DatabasePool
+from octop.infra.db.repos.agent_share_targets import AgentShareTargetRepo
 from octop.infra.db.repos.agents import AgentRepo
 from octop.infra.db.repos.audit import AuditRepo
 from octop.infra.db.repos.backends import BackendRepo
@@ -44,6 +45,7 @@ class RepoBundle:
     user_policy_repo: UserPolicyRepo
     invite_repo: InviteRepo
     agent_repo: AgentRepo
+    agent_share_target_repo: AgentShareTargetRepo
     provider_repo: ProviderRepo
     channel_repo: ChannelRepo
     cron_repo: CronJobRepo
@@ -75,6 +77,7 @@ class RepoBundle:
             user_policy_repo=UserPolicyRepo(db),
             invite_repo=InviteRepo(db),
             agent_repo=AgentRepo(db),
+            agent_share_target_repo=AgentShareTargetRepo(db),
             provider_repo=ProviderRepo(db),
             channel_repo=ChannelRepo(db),
             cron_repo=CronJobRepo(db),
@@ -129,6 +132,10 @@ class SharedServices:
     @property
     def agent_repo(self) -> AgentRepo:
         return self.repos.agent_repo
+
+    @property
+    def agent_share_target_repo(self) -> AgentShareTargetRepo:
+        return self.repos.agent_share_target_repo
 
     @property
     def provider_repo(self) -> ProviderRepo:

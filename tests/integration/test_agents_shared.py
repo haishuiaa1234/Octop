@@ -74,6 +74,57 @@ async def test_create_agent_can_be_shared(env) -> None:
     assert agent_id in {row["agent_id"] for row in response.json()}
 
 
+async def test_agent_sharing_supports_mixed_users_and_roles(env) -> None:
+    client, server, admin_auth = env
+    from octop.infra.db.repos.user_roles import UserRoleRepo
+
+    UserRoleRepo(server.services.db).create(
+        user_role_id="ops",
+        user_role_name="运营",
+        permissions=[],
+        policies=[],
+    )
+    owner_auth = await create_user(client, admin_auth, username="mixed_owner")
+    direct_auth = await create_user(client, admin_auth, username="mixed_direct")
+    role_auth = await create_user(client, admin_auth, username="mixed_role", role="ops")
+    outsider_auth = await create_user(client, admin_auth, username="mixed_outsider")
+    direct_id = server.services.user_repo.get_by_username("mixed_direct").id
+
+    created = await client.post(
+        "/api/agents",
+        headers=owner_auth,
+        json={"name": "mixed-shared", "config": {}},
+    )
+    assert created.status_code == 201, created.text
+    agent_id = created.json()["agent_id"]
+    updated = await client.patch(
+        f"/api/agents/{agent_id}",
+        headers=owner_auth,
+        json={"shared_user_ids": [direct_id], "shared_role_ids": ["ops"]},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["shared_user_ids"] == [direct_id]
+    assert updated.json()["shared_role_ids"] == ["ops"]
+
+    for auth in (direct_auth, role_auth):
+        response = await client.get(f"/api/agents/{agent_id}", headers=auth)
+        assert response.status_code == 200, response.text
+    response = await client.get(f"/api/agents/{agent_id}", headers=outsider_auth)
+    assert response.status_code == 403, response.text
+    visible = await client.get("/api/agents", headers=role_auth)
+    assert agent_id in {row["agent_id"] for row in visible.json()}
+
+
+async def test_agent_share_options_are_available_to_regular_users(env) -> None:
+    client, _server, admin_auth = env
+    user_auth = await create_user(client, admin_auth, username="share_options_user")
+    response = await client.get("/api/agents/share-options", headers=user_auth)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert any(item["username"] == "share_options_user" for item in payload["users"])
+    assert {item["id"] for item in payload["roles"]} >= {"admin", "user"}
+
+
 async def test_peer_cannot_patch_shared_agent(env) -> None:
     client, owner_auth, peer_auth, agent_id = await _shared_agent(env)
     response = await client.patch(

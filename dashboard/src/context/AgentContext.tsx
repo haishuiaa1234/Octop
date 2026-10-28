@@ -35,6 +35,8 @@ export interface OctopAgent {
   owner_username?: string | null;
   /** Whether the owner has shared this expert with other users. */
   is_shared?: boolean;
+  shared_user_ids?: number[];
+  shared_role_ids?: string[];
   /** Whether the current user owns this expert. */
   is_owner?: boolean;
   name: string;
@@ -140,7 +142,7 @@ export function selectEnabledExperts(
   return [pinnedActive, ...enabled];
 }
 
-function sameMemberIds(left?: string[], right?: string[]): boolean {
+function sameMemberIds<T>(left?: T[], right?: T[]): boolean {
   const a = left ?? [];
   const b = right ?? [];
   return a.length === b.length && a.every((id, index) => id === b[index]);
@@ -168,6 +170,7 @@ export function agentsSnapshotEqual(
         a.kind === b.kind &&
         a.bridge === b.bridge &&
         a.is_owner === b.is_owner &&
+        a.is_shared === b.is_shared &&
         a.bridge_connection_id === b.bridge_connection_id &&
         a.bridge_connection_name === b.bridge_connection_name &&
         a.bridge_disconnected === b.bridge_disconnected &&
@@ -175,7 +178,9 @@ export function agentsSnapshotEqual(
         a.default_model === b.default_model &&
         sameMemberIds(a.member_ids, b.member_ids) &&
         sameMemberIds(a.knowledge_base_ids, b.knowledge_base_ids) &&
-        sameMemberIds(a.mcp_servers, b.mcp_servers)
+        sameMemberIds(a.mcp_servers, b.mcp_servers) &&
+        sameMemberIds(a.shared_user_ids, b.shared_user_ids) &&
+        sameMemberIds(a.shared_role_ids, b.shared_role_ids)
       );
     })
   );

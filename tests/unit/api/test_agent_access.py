@@ -82,3 +82,29 @@ def test_user_owns_agent_only_for_matching_owner() -> None:
     assert user_owns_agent(row, owner) is True
     assert user_owns_agent(row, other) is False
     assert user_owns_agent(row, admin) is False
+
+
+def test_user_share_target_grants_access() -> None:
+    row = SimpleNamespace(user_id=1, is_shared=0)
+    user = SimpleNamespace(id=7, role="user", is_admin=False)
+    targets = [SimpleNamespace(target_type="user", target_id="7")]
+    assert_agent_access_row(row, user, share_targets=targets)
+
+
+def test_role_share_target_grants_access() -> None:
+    row = SimpleNamespace(user_id=1, is_shared=0)
+    user = SimpleNamespace(id=8, role="ops", is_admin=False)
+    targets = [SimpleNamespace(target_type="role", target_id="ops")]
+    assert_agent_access_row(row, user, share_targets=targets)
+
+
+def test_mixed_share_targets_still_deny_non_matching_user() -> None:
+    row = SimpleNamespace(user_id=1, is_shared=0)
+    user = SimpleNamespace(id=9, role="finance", is_admin=False)
+    targets = [
+        SimpleNamespace(target_type="user", target_id="7"),
+        SimpleNamespace(target_type="role", target_id="ops"),
+    ]
+    with pytest.raises(OctopError) as ei:
+        assert_agent_access_row(row, user, share_targets=targets)
+    assert ei.value.code is ErrorCode.FORBIDDEN

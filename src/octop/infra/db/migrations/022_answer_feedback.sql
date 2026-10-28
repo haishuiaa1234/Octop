@@ -18,4 +18,14 @@ CREATE TABLE IF NOT EXISTS answer_feedback (
     UNIQUE(user_id,thread_id,message_id)
 );
 CREATE INDEX IF NOT EXISTS answer_feedback_created ON answer_feedback(created_at);
+CREATE TABLE IF NOT EXISTS agent_share_targets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL CHECK (target_type IN ('user', 'role')),
+  target_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(agent_id, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_share_targets_lookup
+  ON agent_share_targets(target_type, target_id, agent_id);
 UPDATE _schema_version SET version = 22;

@@ -71,6 +71,21 @@ async def test_team_can_be_created_shared(team_env):
     assert (await client.get(f"/api/teams/{team_id}", headers=peer)).status_code == 200
 
 
+async def test_team_sharing_supports_user_and_role_targets(team_env):
+    client, server, owner, peer, members, team_id = team_env
+    peer_id = server.services.user_repo.get_by_username("team_peer").id
+    response = await client.patch(
+        f"/api/teams/{team_id}",
+        headers=owner,
+        json={"shared_user_ids": [peer_id], "shared_role_ids": ["user"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["shared_user_ids"] == [peer_id]
+    assert response.json()["shared_role_ids"] == ["user"]
+    assert (await client.get(f"/api/teams/{team_id}", headers=peer)).status_code == 200
+    assert (await client.get("/api/teams", headers=peer)).json()[0]["team_id"] == team_id
+
+
 async def test_shared_team_mutations_remain_owner_only(team_env):
     client, _server, owner, peer, members, team_id = team_env
     response = await client.patch(f"/api/agents/{team_id}", headers=owner, json={"is_shared": True})

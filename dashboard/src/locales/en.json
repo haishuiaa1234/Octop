@@ -863,6 +863,11 @@
     "loadDetailFailed": "Failed to load expert details",
     "share": {
       "toggle": "Share with other users",
+      "allUsers": "Share with everyone",
+      "users": "Specific users",
+      "usersPlaceholder": "Select one or more users",
+      "roles": "Specific roles",
+      "rolesPlaceholder": "Select one or more roles",
       "badge": "Shared",
       "creator": "Created by: {{name}}",
       "fromOwner": "Shared expert · from {{name}}"

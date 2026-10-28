@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from octop.api.common.agent import assert_agent_access_row, assert_agent_owner
+from octop.api.common.agent import (
+    assert_agent_access_row,
+    assert_agent_owner,
+    replace_share_targets,
+    share_target_ids,
+)
 from octop.api.deps import current_user, get_server
 from octop.infra.agents.manager import AgentCreateSpec
 from octop.infra.agents.teams import (
@@ -36,6 +41,8 @@ class TeamCreateBody(BaseModel):
     is_shared: bool = Field(
         default=False, description="Allow all other users to chat with this team."
     )
+    shared_user_ids: list[int] = Field(default_factory=list)
+    shared_role_ids: list[str] = Field(default_factory=list)
 
 
 class TeamPatchBody(BaseModel):
@@ -47,6 +54,8 @@ class TeamPatchBody(BaseModel):
     welcome_message: str | None = None
     member_ids: list[str] | None = None
     is_shared: bool | None = Field(default=None, description="Owner-only sharing toggle.")
+    shared_user_ids: list[int] | None = None
+    shared_role_ids: list[str] | None = None
 
 
 class TeamMemberSummary(BaseModel):
@@ -77,6 +86,8 @@ class TeamResponse(BaseModel):
     owner_username: str | None
     member_ids: list[str]
     members: list[TeamMemberSummary]
+    shared_user_ids: list[int]
+    shared_role_ids: list[str]
 
 
 def _teams(server: Any) -> Any:
@@ -92,7 +103,8 @@ def _require_team(server: Any, user: Any, team_id: str, *, owner_only: bool = Tr
     if owner_only:
         assert_agent_owner(row, user)
     else:
-        assert_agent_access_row(row, user)
+        targets = server.services.agent_share_target_repo.list_for_agent(team_id)
+        assert_agent_access_row(row, user, share_targets=targets)
     return row
 
 
@@ -132,6 +144,13 @@ async def create_team(
         is_shared=body.is_shared,
     )
     row = await server.app_runtime.agent_registry.create(spec)
+    replace_share_targets(
+        server,
+        row.agent_id,
+        user_ids=body.shared_user_ids,
+        role_ids=body.shared_role_ids,
+    )
+    row = server.app_runtime.agent_registry.get_row(row.agent_id) or row
     return cast(
         dict[str, Any],
         teams.team_payload(
@@ -210,6 +229,24 @@ async def patch_team(
         await server.app_runtime.agent_registry.update(team_id, **updates)
     if body.is_shared is not None:
         await server.app_runtime.agent_registry.set_shared(team_id, body.is_shared)
+    if "shared_user_ids" in body.model_fields_set or "shared_role_ids" in body.model_fields_set:
+        current_users, current_roles = share_target_ids(server, team_id)
+        replace_share_targets(
+            server,
+            team_id,
+            user_ids=(
+                body.shared_user_ids
+                if "shared_user_ids" in body.model_fields_set
+                else current_users
+            )
+            or [],
+            role_ids=(
+                body.shared_role_ids
+                if "shared_role_ids" in body.model_fields_set
+                else current_roles
+            )
+            or [],
+        )
     if roster_changed:
         await server.app_runtime.agent_registry.reload(team_id)
     row = server.app_runtime.agent_registry.get_row(team_id)

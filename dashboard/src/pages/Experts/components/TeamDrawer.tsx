@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Alert,
-  Collapse,
-  Drawer,
-  Form,
-  Input,
-  Select,
-  Spin,
-  Switch,
-} from "antd";
+import { Alert, Collapse, Drawer, Form, Input, Select, Spin } from "antd";
 import { message } from "@/utils/antdMessage";
 
 import {
@@ -34,6 +25,7 @@ import TeamMemberPicker, {
   type TeamMemberOption,
 } from "./TeamMemberPicker";
 import styles from "../index.module.less";
+import ShareTargetsField from "./ShareTargetsField";
 
 interface TeamDrawerProps {
   open: boolean;
@@ -50,6 +42,8 @@ interface TeamFormValues {
   default_model: string;
   welcome_message?: string;
   is_shared: boolean;
+  shared_user_ids: number[];
+  shared_role_ids: string[];
   member_ids: string[];
 }
 
@@ -85,6 +79,8 @@ export default function TeamDrawer({
         default_model: defaultModelToForm(team.default_model),
         welcome_message: team.welcome_message ?? "",
         is_shared: team.is_shared === true,
+        shared_user_ids: team.shared_user_ids ?? [],
+        shared_role_ids: team.shared_role_ids ?? [],
         member_ids: team.member_ids ?? [],
       });
       let cancelled = false;
@@ -98,6 +94,8 @@ export default function TeamDrawer({
             default_model: defaultModelToForm(record.default_model),
             welcome_message: record.welcome_message ?? "",
             is_shared: record.is_shared,
+            shared_user_ids: record.shared_user_ids ?? [],
+            shared_role_ids: record.shared_role_ids ?? [],
             member_ids: record.members.map((member) => member.agent_id),
           });
           setRosterExtras(
@@ -126,6 +124,8 @@ export default function TeamDrawer({
       default_model: MODEL_AUTO_VALUE,
       welcome_message: t("experts.teams.welcomeDefault"),
       is_shared: false,
+      shared_user_ids: [],
+      shared_role_ids: [],
       member_ids: [],
     });
     setRosterExtras([]);
@@ -164,6 +164,8 @@ export default function TeamDrawer({
       icon_url: TEAM_AVATAR_URL,
       welcome_message: values.welcome_message?.trim() || null,
       is_shared: values.is_shared,
+      shared_user_ids: values.shared_user_ids,
+      shared_role_ids: values.shared_role_ids,
       member_ids: selectedRosterIds(values.member_ids, pickerExperts),
     };
     setSubmitting(true);
@@ -245,13 +247,7 @@ export default function TeamDrawer({
         <Form.Item name="description" label={t("experts.agentDescription")}>
           <Input.TextArea rows={2} />
         </Form.Item>
-        <Form.Item
-          name="is_shared"
-          label={t("experts.share.toggle")}
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
+        <ShareTargetsField />
         <Form.Item
           name="welcome_message"
           label={t("experts.welcomeMessageTitle")}

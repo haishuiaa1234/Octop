@@ -45,6 +45,7 @@ def test_run_migrations_creates_tables(db: SqlitePool):
         "users",
         "user_policies",
         "agents",
+        "agent_share_targets",
         "providers",
         "channels",
         "cron_jobs",

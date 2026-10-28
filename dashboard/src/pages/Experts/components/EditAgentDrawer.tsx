@@ -13,7 +13,6 @@ import {
   Modal,
   Select,
   Spin,
-  Switch,
 } from "antd";
 
 import { MoreHorizontal } from "lucide-react";
@@ -88,6 +87,7 @@ import ExpertComposerDefaultsFields from "./ExpertComposerDefaultsFields";
 import SkillCatalogDrawer from "./SkillCatalogDrawer";
 import SubagentCatalogDrawer from "./SubagentCatalogDrawer";
 import ExternalApiButton from "./ExternalApiButton";
+import ShareTargetsField from "./ShareTargetsField";
 import styles from "../index.module.less";
 
 interface AgentDetail {
@@ -103,6 +103,9 @@ interface AgentDetail {
   top_p?: number | null;
   max_tokens?: number | null;
   welcome_message?: string | null;
+  is_shared?: boolean;
+  shared_user_ids?: number[];
+  shared_role_ids?: string[];
   knowledge_base_ids?: string[];
   mcp_servers?: string[];
   config?: Record<string, unknown>;
@@ -141,6 +144,8 @@ interface EditFormValues {
   description: string;
   welcome_message?: string;
   is_shared?: boolean;
+  shared_user_ids?: number[];
+  shared_role_ids?: string[];
   default_model: string;
   conversation_mode: ConversationMode;
   backend_choice: string;
@@ -318,6 +323,8 @@ function EditAgentDrawerBody({
           welcome_message:
             typeof ag.welcome_message === "string" ? ag.welcome_message : "",
           is_shared: agent.is_shared ?? false,
+          shared_user_ids: ag.shared_user_ids ?? [],
+          shared_role_ids: ag.shared_role_ids ?? [],
           default_model: defaultModelToForm(ag.default_model),
           conversation_mode: parseConversationMode(cfg.conversation_mode),
           backend_choice: parsedBackend.backendChoice,
@@ -486,6 +493,8 @@ function EditAgentDrawerBody({
             name: values.name,
             description: values.description || null,
             is_shared: values.is_shared ?? false,
+            shared_user_ids: values.shared_user_ids ?? [],
+            shared_role_ids: values.shared_role_ids ?? [],
             default_model: defaultModelFromForm(values.default_model),
             color: nextColor,
             config: nextConfig,
@@ -838,13 +847,7 @@ function EditAgentDrawerBody({
                   onChange={setColorPalette}
                 />
               </Form.Item>
-              <Form.Item
-                name="is_shared"
-                label={t("experts.share.toggle")}
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
+              <ShareTargetsField />
               <Form.Item
                 name="conversation_mode"
                 label={t("experts.defaultModeLabel")}

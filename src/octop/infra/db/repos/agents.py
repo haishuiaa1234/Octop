@@ -239,13 +239,29 @@ class AgentRepo:
                 (bool_int(shared), now_ts(), agent_id),
             )
 
-    def list_shared(self, *, exclude_user_id: int | None = None) -> list[AgentRow]:
-        sql = "SELECT * FROM agents WHERE is_shared = 1 AND enabled = 1"
+    def list_shared(
+        self,
+        *,
+        exclude_user_id: int | None = None,
+        user_id: int | None = None,
+        role_id: str | None = None,
+    ) -> list[AgentRow]:
+        sql = "SELECT DISTINCT a.* FROM agents a"
         params: list[object] = []
+        if user_id is not None or role_id is not None:
+            sql += " LEFT JOIN agent_share_targets t ON t.agent_id = a.agent_id"
+        sql += " WHERE a.enabled = 1 AND (a.is_shared = 1"
+        if user_id is not None:
+            sql += " OR (t.target_type = 'user' AND t.target_id = ?)"
+            params.append(str(user_id))
+        if role_id is not None:
+            sql += " OR (t.target_type = 'role' AND t.target_id = ?)"
+            params.append(role_id)
+        sql += ")"
         if exclude_user_id is not None:
-            sql += " AND user_id != ?"
+            sql += " AND (a.user_id IS NULL OR a.user_id != ?)"
             params.append(exclude_user_id)
-        sql += " ORDER BY created_at ASC, id ASC"
+        sql += " ORDER BY a.created_at ASC, a.id ASC"
         with self._db.connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return map_rows(rows, AgentRow)

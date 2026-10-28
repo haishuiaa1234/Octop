@@ -24,6 +24,8 @@ export interface TeamRecord {
   state?: string;
   kind: "team";
   is_shared: boolean;
+  shared_user_ids: number[];
+  shared_role_ids: string[];
   is_owner: boolean;
   owner_username: string | null;
   member_ids: string[];
@@ -39,6 +41,8 @@ export interface TeamWriteBody {
   icon_url?: string | null;
   welcome_message?: string | null;
   is_shared?: boolean;
+  shared_user_ids?: number[];
+  shared_role_ids?: string[];
   member_ids?: string[];
 }
 

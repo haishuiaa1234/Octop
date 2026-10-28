@@ -8,8 +8,14 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import Response
+from pydantic import Field
 
-from octop.api.common.agent import assert_agent_access_row, assert_agent_owner
+from octop.api.common.agent import (
+    assert_agent_access_row,
+    assert_agent_owner,
+    replace_share_targets,
+    share_target_ids,
+)
 from octop.api.common.agent_runtime import AgentRuntimeFields, runtime_field_updates
 from octop.api.common.validators import assert_user_backend_root_dirs
 from octop.api.common.workspace import require_agent_workspace
@@ -57,6 +63,8 @@ class AgentCreateBody(AgentRuntimeFields):
     skill_package_ids: list[str] | None = None
     knowledge_base_ids: list[str] | None = None
     mcp_servers: list[str] | None = None
+    shared_user_ids: list[int] = Field(default_factory=list)
+    shared_role_ids: list[str] = Field(default_factory=list)
 
 
 class AgentPatchBody(AgentRuntimeFields):
@@ -76,6 +84,8 @@ class AgentPatchBody(AgentRuntimeFields):
     skill_package_ids: list[str] | None = None
     knowledge_base_ids: list[str] | None = None
     mcp_servers: list[str] | None = None
+    shared_user_ids: list[int] | None = None
+    shared_role_ids: list[str] | None = None
 
 
 def _attach_unread_counts(
@@ -194,6 +204,10 @@ def _row_dict(
         "kind": getattr(row, "kind", None) or "expert",
         **agent_runtime_values(cfg),
     }
+    if server is not None:
+        shared_user_ids, shared_role_ids = share_target_ids(server, row.agent_id)
+        payload["shared_user_ids"] = shared_user_ids
+        payload["shared_role_ids"] = shared_role_ids
     if payload["kind"] == "team":
         registry = getattr(getattr(server, "app_runtime", None), "agent_registry", None)
         teams = getattr(registry, "teams", None)
@@ -251,7 +265,9 @@ async def list_agents(
         return _attach_unread_counts(server, user.id, payloads)
 
     owned = registry.list_agents(user.id)
-    shared = server.services.agent_repo.list_shared(exclude_user_id=user.id)
+    shared = server.services.agent_repo.list_shared(
+        exclude_user_id=user.id, user_id=user.id, role_id=user.role
+    )
     rows = list({row.agent_id: row for row in [*shared, *owned]}.values())
     owner_username_by_id: dict[int, str] = {user.id: user.username}
     for row in shared:
@@ -276,6 +292,24 @@ async def list_agents(
             for r in rows
         ],
     )
+
+
+@router.get("/share-options", summary="List users and roles available for agent sharing")
+async def list_share_options(
+    _user: Any = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> dict[str, list[dict[str, Any]]]:
+    users = [
+        {"id": row.id, "username": row.username, "display_name": row.display_name}
+        for row in server.services.user_repo.list(include_disabled=False)
+    ]
+    from octop.infra.db.repos.user_roles import UserRoleRepo
+
+    roles = [
+        {"id": row.user_role_id, "name": row.user_role_name}
+        for row in UserRoleRepo(server.services.db).list_all()
+    ]
+    return {"users": users, "roles": roles}
 
 
 @router.post("", status_code=201, summary="Create agent")
@@ -327,6 +361,13 @@ async def create_agent(
         mcp_servers=mcp_servers,
     )
     row = await server.app_runtime.agent_registry.create(spec)
+    replace_share_targets(
+        server,
+        row.agent_id,
+        user_ids=body.shared_user_ids,
+        role_ids=body.shared_role_ids,
+    )
+    row = server.app_runtime.agent_registry.get_row(row.agent_id) or row
     return _row_dict(
         row,
         viewer_user_id=user.id,
@@ -362,7 +403,8 @@ async def get_agent(
     row = server.app_runtime.agent_registry.get_row(agent_id)
     if row is None:
         raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
-    assert_agent_access_row(row, user)
+    targets = server.services.agent_share_target_repo.list_for_agent(agent_id)
+    assert_agent_access_row(row, user, share_targets=targets)
     return _row_dict(
         row,
         viewer_user_id=user.id,
@@ -405,6 +447,8 @@ async def patch_agent(
             "skill_package_ids",
             "knowledge_base_ids",
             "mcp_servers",
+            "shared_user_ids",
+            "shared_role_ids",
         }
     }
     if body.config is not None:
@@ -434,6 +478,24 @@ async def patch_agent(
             row = refreshed
     if body.is_shared is not None:
         row = await server.app_runtime.agent_registry.set_shared(agent_id, body.is_shared)
+    if "shared_user_ids" in body.model_fields_set or "shared_role_ids" in body.model_fields_set:
+        current_users, current_roles = share_target_ids(server, agent_id)
+        replace_share_targets(
+            server,
+            agent_id,
+            user_ids=(
+                body.shared_user_ids
+                if "shared_user_ids" in body.model_fields_set
+                else current_users
+            )
+            or [],
+            role_ids=(
+                body.shared_role_ids
+                if "shared_role_ids" in body.model_fields_set
+                else current_roles
+            )
+            or [],
+        )
     return _row_dict(
         row,
         viewer_user_id=user.id,

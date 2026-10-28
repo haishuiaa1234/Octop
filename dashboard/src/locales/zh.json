@@ -863,6 +863,11 @@
     "loadDetailFailed": "加载详情失败",
     "share": {
       "toggle": "共享给其他用户",
+      "allUsers": "共享给所有用户",
+      "users": "指定用户",
+      "usersPlaceholder": "选择一个或多个用户",
+      "roles": "指定角色",
+      "rolesPlaceholder": "选择一个或多个角色",
       "badge": "已共享",
       "creator": "创建人：{{name}}",
       "fromOwner": "共享专家 · 来自 {{name}}"
