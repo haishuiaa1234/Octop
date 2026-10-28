@@ -307,14 +307,19 @@
     <script>
       (function () {
         var logo = document.getElementById("octop-boot-logo");
-        if (!logo || !window.fetch) return;
+        var favicon = document.querySelector('link[rel="icon"]');
+        if (!window.fetch) return;
         fetch("/api/settings/branding", { cache: "no-store" })
           .then(function (response) {
             return response.ok ? response.json() : null;
           })
           .then(function (branding) {
             if (branding && branding.brand === "dinfectome") {
-              logo.src = "/dinfectome-logo.webp";
+              if (logo) logo.src = "/dinfectome-logo.webp";
+              if (favicon) {
+                favicon.type = "image/webp";
+                favicon.href = "/dinfectome-logo.webp";
+              }
             }
           })
           .catch(function () {});
