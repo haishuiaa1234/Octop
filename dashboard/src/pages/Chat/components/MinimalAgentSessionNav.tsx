@@ -97,6 +97,19 @@ function AgentUnreadBadge({ count }: { count: number }) {
   );
 }
 
+function SessionUnreadBadge({ count }: { count: number }) {
+  const { t } = useTranslation();
+  if (!count || count <= 0) return null;
+  return (
+    <span
+      className={styles.sessionRowUnread}
+      aria-label={t("chat.unreadMessages", "未读消息")}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 const PreviewSessionRow = memo(function PreviewSessionRow({
   session,
   isActive,
@@ -234,6 +247,7 @@ const PreviewSessionRow = memo(function PreviewSessionRow({
             <SessionWorkStatusIcon status={workStatus} />
           </span>
           <span className={styles.sessionRowTitle}>{session.name}</span>
+          <SessionUnreadBadge count={session.unreadCount ?? 0} />
           {session.pinned ? (
             <span
               className={styles.sessionRowPinIndicator}

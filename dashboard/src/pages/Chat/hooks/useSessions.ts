@@ -21,6 +21,7 @@ export interface Session {
   isActive?: boolean;
   hasActivity?: boolean;
   pinned?: boolean;
+  unreadCount?: number;
   modelRef?: string | null;
   reasoningMode?: "auto" | "enabled" | "disabled" | null;
   reasoningEffort?: string | null;
@@ -44,6 +45,7 @@ export function toSession(row: {
   is_active?: boolean;
   has_messages?: boolean;
   pinned?: boolean;
+  unread_count?: number;
   model_ref?: string | null;
   reasoning_mode?: "auto" | "enabled" | "disabled" | null;
   reasoning_effort?: string | null;
@@ -74,6 +76,7 @@ export function toSession(row: {
     isActive: row.is_active ?? false,
     hasActivity,
     pinned: Boolean(row.pinned),
+    unreadCount: row.unread_count ?? 0,
     modelRef: row.model_ref ?? null,
     reasoningMode: row.reasoning_mode ?? null,
     reasoningEffort: row.reasoning_effort ?? null,
@@ -133,6 +136,14 @@ export function markPendingThread(threadId: string) {
 
 export function clearPendingThread(threadId: string) {
   _pendingThreadIds.delete(threadId);
+}
+
+export function clearSessionUnreadCounts() {
+  setModuleSessions((prev) => {
+    const hasUnread = prev.some((session) => (session.unreadCount ?? 0) > 0);
+    if (!hasUnread) return prev;
+    return prev.map((session) => ({ ...session, unreadCount: 0 }));
+  });
 }
 
 /** Patch HITL bypass for one thread in the module session store. */
@@ -636,5 +647,6 @@ export function useSessions(agentId: string | null) {
     fetchAllSessions,
     ensureThreadInList,
     syncSession,
+    clearUnreadCounts: clearSessionUnreadCounts,
   };
 }

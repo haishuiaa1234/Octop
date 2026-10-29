@@ -303,8 +303,9 @@ class SessionRepo:
         placeholders = sql_in_placeholders(len(thread_ids))
         with self._db.connect() as conn:
             rows = conn.execute(
-                f"SELECT thread_id, unread_count FROM sessions "
-                f"WHERE thread_id IN ({placeholders}) AND unread_count > 0",
+                f"SELECT thread_id, SUM(unread_count) AS unread_count FROM sessions "
+                f"WHERE thread_id IN ({placeholders}) AND unread_count > 0 "
+                "GROUP BY thread_id",
                 thread_ids,
             ).fetchall()
         return {str(r["thread_id"]): int(r["unread_count"]) for r in rows}

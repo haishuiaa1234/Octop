@@ -291,6 +291,7 @@ function ChatPageInner() {
     loadMoreSessions,
     fetchAllSessions,
     ensureThreadInList,
+    clearUnreadCounts,
   } = useSessions(resolvedAgentId ?? null);
 
   const handleLoadMoreSessions = useCallback(() => {
@@ -905,10 +906,13 @@ function ChatPageInner() {
       if (!agentId) return;
       void octopAgentsApi
         .markRead(agentId)
-        .then(() => refreshAgents({ silent: true }))
+        .then(() => {
+          clearUnreadCounts();
+          return refreshAgents({ silent: true });
+        })
         .catch(() => {});
     },
-    [refreshAgents],
+    [clearUnreadCounts, refreshAgents],
   );
 
   const {
@@ -1338,6 +1342,7 @@ function ChatPageInner() {
       onSelectSession={(sessionId, agentId) => {
         setActiveAgent(agentId);
         if (agentId && agentId !== resolvedAgentId) {
+          markAgentRead(agentId);
           void octopThreadsApi.rebind(agentId, sessionId).catch(() => {});
           navigate(`/chat/${agentId}/${sessionId}`);
           if (isMobile) setSidebarOpen(false);

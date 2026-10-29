@@ -114,6 +114,9 @@ async def list_threads(
     thread_registry = server.app_runtime.gateway.thread_registry
     effective_uid = as_user if as_user is not None else user.id
     rows = thread_registry.list_threads(agent_id=agent_id, user_id=effective_uid, limit=limit)
+    unread_counts = thread_registry.unread_counts_for_threads(
+        [row.thread_id for row in rows]
+    )
     bound = thread_registry.get_bound_thread_id(
         ThreadRegistry.dashboard_key(agent_id=agent_id, user_id=effective_uid)
     )
@@ -132,6 +135,7 @@ async def list_threads(
             "created_at": r.created_at,
             "is_active": r.thread_id == bound,
             "has_messages": thread_row_has_messages(r),
+            "unread_count": unread_counts.get(r.thread_id, 0),
             "pinned": r.pinned,
             "model_ref": r.model_ref,
             "reasoning_mode": r.reasoning_mode,
