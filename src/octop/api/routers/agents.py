@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from pydantic import Field
 
 from octop.api.common.agent import (
+    assert_agent_access,
     assert_agent_access_row,
     assert_agent_owner,
     replace_share_targets,
@@ -377,18 +378,19 @@ async def create_agent(
     )
 
 
-@router.post("/{agent_id}/read", status_code=204, summary="Mark agent read")
+@router.post(
+    "/{agent_id}/read",
+    status_code=204,
+    summary="Mark agent read",
+    description="Requires access to the expert or team. Clears only the current user's unread counts.",
+)
 async def mark_agent_read(
     agent_id: str,
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> None:
     """Clear unread counts for all of the user's sessions under this agent."""
-    assert server.app_runtime is not None
-    row = server.app_runtime.agent_registry.get_row(agent_id)
-    if row is None:
-        raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
-    _assert_agent_owner(row, user)
+    assert_agent_access(server, agent_id, user)
     server.services.session_repo.clear_unread_for_agent(agent_id, user.id)
 
 

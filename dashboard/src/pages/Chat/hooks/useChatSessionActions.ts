@@ -18,6 +18,7 @@ interface UseChatSessionActionsParams {
   clearMessages: () => void;
   resetNavForAgentSwitch: () => void;
   markInitialNavDone: (agentId: string) => void;
+  markAgentRead: (agentId: string) => void;
 }
 
 export function useChatSessionActions({
@@ -33,6 +34,7 @@ export function useChatSessionActions({
   clearMessages,
   resetNavForAgentSwitch,
   markInitialNavDone,
+  markAgentRead,
 }: UseChatSessionActionsParams) {
   const navigate = useNavigate();
 
@@ -79,6 +81,7 @@ export function useChatSessionActions({
     (id: string) => {
       const agent = resolvedAgentId;
       if (!agent) return;
+      markAgentRead(agent);
       if (id === activeThreadId) return;
       setSelectedModel(null);
       void octopThreadsApi.rebind(agent, id).catch(() => {});
@@ -92,12 +95,16 @@ export function useChatSessionActions({
       resolvedAgentId,
       setSidebarOpen,
       setSelectedModel,
+      markAgentRead,
     ],
   );
 
   const navigateToAgent = useCallback(
     (agentId: string) => {
       if (!agentId) return;
+      if (agentId === resolvedAgentId) {
+        markAgentRead(agentId);
+      }
       resetNavForAgentSwitch();
       navigate(`/chat/${agentId}`, { replace: true });
       setActiveAgent(agentId);
@@ -126,9 +133,11 @@ export function useChatSessionActions({
       setActiveAgent,
       navigate,
       isMobile,
+      resolvedAgentId,
       setSidebarOpen,
       resetNavForAgentSwitch,
       markInitialNavDone,
+      markAgentRead,
     ],
   );
 

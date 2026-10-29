@@ -37,7 +37,7 @@ function makeMessage(id: string): ChatMessage {
   return { id, role: "user", content: `message ${id}`, timestamp: Date.now() };
 }
 
-function renderActions() {
+function renderActions(markAgentRead = vi.fn()) {
   return renderHook(
     () =>
       useChatSessionActions({
@@ -53,6 +53,7 @@ function renderActions() {
         clearMessages: vi.fn(),
         resetNavForAgentSwitch: vi.fn(),
         markInitialNavDone: vi.fn(),
+        markAgentRead,
       }),
     { wrapper },
   );
@@ -76,5 +77,17 @@ describe("navigateToAgent", () => {
 
     expect(getSnapshot(THREAD).messages).toHaveLength(1);
     expect(getSnapshot(EMPTY_CHAT_SESSION_KEY).messages).toHaveLength(0);
+  });
+
+  it("marks the current agent read when clicking its active session", async () => {
+    const markAgentRead = vi.fn();
+    const { result } = renderActions(markAgentRead);
+
+    await act(async () => {
+      result.current.handleSelectSession(THREAD);
+    });
+
+    expect(markAgentRead).toHaveBeenCalledWith("agent-a");
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

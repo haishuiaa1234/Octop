@@ -56,6 +56,7 @@ import {
 } from "./utils/chromeInstallGate";
 import { isFileToolName } from "./constants";
 import { browserApi } from "../../api/modules/browser";
+import { octopAgentsApi } from "../../api/modules/octopAgents";
 import { octopThreadsApi } from "../../api/modules/octopThreads";
 import type { TokenUsage } from "../../api/types";
 import type { ChatAttachment } from "./hooks/useChat";
@@ -899,6 +900,17 @@ function ChatPageInner() {
   // (the queue row settles on commit).
   const displayQueuedItems = queuedItems;
 
+  const markAgentRead = useCallback(
+    (agentId: string) => {
+      if (!agentId) return;
+      void octopAgentsApi
+        .markRead(agentId)
+        .then(() => refreshAgents({ silent: true }))
+        .catch(() => {});
+    },
+    [refreshAgents],
+  );
+
   const {
     handleNewChat: startNewChat,
     handleNewChatWithAgent,
@@ -918,6 +930,7 @@ function ChatPageInner() {
     clearMessages,
     resetNavForAgentSwitch,
     markInitialNavDone,
+    markAgentRead,
   });
 
   const handleNewChat = useCallback(() => {
