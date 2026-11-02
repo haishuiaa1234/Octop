@@ -37,3 +37,18 @@ export function useServerBrand(): ServerBrand {
 
   return brand;
 }
+
+/** Keep the tab icon in sync with the brand used by page logos and mascots. */
+export function useBrandFavicon(): void {
+  const brand = useServerBrand();
+
+  useEffect(() => {
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!favicon) return;
+    const dinfectome = brand === "dinfectome";
+    favicon.type = dinfectome ? "image/webp" : "image/x-icon";
+    favicon.href = dinfectome
+      ? "/dinfectome-logo.webp"
+      : "/geneseeq-favicon.ico";
+  }, [brand]);
+}
