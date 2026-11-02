@@ -1,9 +1,47 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THEME_STORAGE_KEY } from "./themePalettes";
 
 const INDEX_HTML = readFileSync(resolve(__dirname, "../../index.html"), "utf8");
+
+describe("boot favicon branding", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(["dinfectome", "default", "unknown"])(
+    "selects the browser icon for %s before React loads",
+    async (brand) => {
+      const doc = new DOMParser().parseFromString(INDEX_HTML, "text/html");
+      const script = Array.from(doc.scripts).find(
+        (node) => node.textContent?.includes('fetch("/api/settings/branding"'),
+      );
+      expect(script).toBeDefined();
+      const fetchBrand = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ brand }),
+      });
+      vi.stubGlobal("fetch", fetchBrand);
+      new Function("document", script!.textContent!)(doc);
+      await vi.waitFor(() => expect(fetchBrand).toHaveBeenCalledOnce());
+      await vi.waitFor(() => {
+        const favicon = doc.querySelector('link[rel="icon"]');
+        expect(favicon?.getAttribute("href")).toBe(
+          brand === "dinfectome"
+            ? "/dinfectome-favicon.svg"
+            : "/geneseeq-favicon.ico",
+        );
+        expect(favicon?.getAttribute("type")).toBe(
+          brand === "dinfectome" ? "image/svg+xml" : "image/x-icon",
+        );
+      });
+      expect(doc.querySelector("#octop-boot-logo")?.getAttribute("src")).toBe(
+        brand === "dinfectome"
+          ? "/dinfectome-logo.webp"
+          : "/geneseeq-icon-192.png",
+      );
+    },
+  );
+});
 
 function bootThemeScript(): string {
   const match = INDEX_HTML.match(

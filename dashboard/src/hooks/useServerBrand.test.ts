@@ -33,8 +33,8 @@ describe("server brand favicon", () => {
     });
 
     await waitFor(() => expect(hook.result.current).toBe("dinfectome"));
-    expect(favicon).toHaveAttribute("href", "/dinfectome-logo.webp");
-    expect(favicon).toHaveAttribute("type", "image/webp");
+    expect(favicon).toHaveAttribute("href", "/dinfectome-favicon.svg");
+    expect(favicon).toHaveAttribute("type", "image/svg+xml");
     hook.rerender();
     expect(branding).toHaveBeenCalledTimes(1);
     expect(document.querySelectorAll('link[rel="icon"]')).toHaveLength(1);
@@ -43,8 +43,8 @@ describe("server brand favicon", () => {
   it.each(["default", "other", undefined])(
     "uses the default G icon for brand %s",
     async (brand) => {
-      favicon.href = "/dinfectome-logo.webp";
-      favicon.type = "image/webp";
+      favicon.href = "/dinfectome-favicon.svg";
+      favicon.type = "image/svg+xml";
       branding.mockResolvedValue({ brand });
       const { useBrandFavicon } = await import("./useServerBrand");
       renderHook(() => useBrandFavicon());

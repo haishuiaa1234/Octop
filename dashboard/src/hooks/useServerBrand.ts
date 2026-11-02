@@ -46,9 +46,9 @@ export function useBrandFavicon(): void {
     const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (!favicon) return;
     const dinfectome = brand === "dinfectome";
-    favicon.type = dinfectome ? "image/webp" : "image/x-icon";
+    favicon.type = dinfectome ? "image/svg+xml" : "image/x-icon";
     favicon.href = dinfectome
-      ? "/dinfectome-logo.webp"
+      ? "/dinfectome-favicon.svg"
       : "/geneseeq-favicon.ico";
   }, [brand]);
 }
