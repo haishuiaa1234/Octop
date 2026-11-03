@@ -2036,6 +2036,8 @@
     "saved": "已保存",
     "readFailed": "读取失败",
     "fileMaybeDeleted": "文件可能已被删除",
+    "fileUnavailable": "文件不存在、尚未生成或已被删除。",
+    "diagramInvalid": "Excalidraw 文件格式无效或内容损坏，可下载原文件检查。",
     "loadChildrenFailed": "加载子目录失败",
     "binaryHint": "该文件可能是二进制内容，请使用下载获取",
     "emptyFile": "文件为空",

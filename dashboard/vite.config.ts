@@ -3,6 +3,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
+import { excalidrawAssets } from "./scripts/excalidrawAssets";
 
 // serialize-javascript@7 (pulled in by vite-plugin-pwa → @rollup/plugin-terser)
 // expects Web Crypto globals during `vite build`. Node <19 does not define them.
@@ -169,6 +170,7 @@ export default defineConfig(({ mode }) => {
       MOBILE: false,
     },
     plugins: [
+      excalidrawAssets(),
       suppressViteDisconnectReload(),
       react(),
       VitePWA({

@@ -75,6 +75,7 @@ import { BuiltinOctopUiFallback } from "../../../plugins/toolRenderers/builtin/B
 import { ToolUiErrorBoundary } from "../../../plugins/toolRenderers/ToolUiErrorBoundary";
 import { lookupPluginIdForTool } from "../../../plugins/toolRenderers/toolPluginIndex";
 import { useChatToolDock } from "../ChatToolDockContext";
+import { useChatFilePreview } from "../ChatFilePreviewContext";
 import { useToolUiDockButtonStyle } from "../hooks/useToolUiDockButtonStyle";
 import type { ParsedToolOutput } from "../../../plugins/toolRenderers/types";
 import type { ToolRendererRegistration } from "../../../plugins/toolRenderers/types";
@@ -555,6 +556,7 @@ function MessageBubble({
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const filePreview = useChatFilePreview();
   const serverTimezone = useServerTimezone();
   const user = useCurrentUser();
   const { agents, activeAgent } = useAgent();
@@ -1007,6 +1009,8 @@ function MessageBubble({
                   <Markdown
                     content={textContent}
                     isStreaming={isStreaming}
+                    workspaceAgentId={speakerId}
+                    onOpenWorkspaceFile={filePreview?.openFilePreview}
                     onRunShellCommand={onRunShellCommand}
                     shellCommandDisabled={shellCommandDisabled}
                     shellCommandDisabledTitle={shellCommandDisabledTitle}

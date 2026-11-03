@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { requestBlob } from "../api/request";
 import { saveBlobAsFile } from "../utils/saveBlobAsFile";
 import { isDataUrl, needsAuthBlobFetch } from "../utils/toolMediaBlocks";
+import { apiErrorMessage, isNotFoundApiError } from "../utils/apiError";
 
 import { message as antMessage } from "@/utils/antdMessage";
 
@@ -112,8 +113,12 @@ export function AuthFileDownloadLink({
       setLoading(true);
       try {
         await downloadAuthFile(url, { filename });
-      } catch {
-        antMessage.error(t("chat.downloadFailed", "下载失败，请重试"));
+      } catch (error) {
+        antMessage.error(
+          isNotFoundApiError(error)
+            ? t("workspace.fileUnavailable")
+            : apiErrorMessage(error, t("chat.downloadFailed"), t),
+        );
       } finally {
         setLoading(false);
       }

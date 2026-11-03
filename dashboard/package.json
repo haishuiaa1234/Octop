@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "^1.2.4",
+    "@excalidraw/excalidraw": "0.18.1",
     "@mermaid-js/parser": "^1.1.0",
     "@monaco-editor/react": "^4.7.0",
     "@wecom/jssdk": "2.4.4",

@@ -9,7 +9,15 @@
  * widths in one layout tree — avoids the classic antd scroll/ellipsis drift.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button, Image, Tabs } from "antd";
 import { ArrowDownToLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +26,8 @@ import type { DocKind } from "../utils/docKind";
 import styles from "./DocumentPreviewCore.module.less";
 import DocumentPreviewLoading from "./DocumentPreviewLoading";
 import PdfDocumentPreview, { PdfViewerSkeleton } from "./PdfDocumentPreview";
+
+const ExcalidrawPreview = lazy(() => import("./ExcalidrawPreview"));
 
 export interface DocumentPreviewCoreProps {
   kind: DocKind;
@@ -336,7 +346,18 @@ function ExcelCellContent({
   return text;
 }
 
-export default function DocumentPreviewCore({
+export default function DocumentPreviewCore(props: DocumentPreviewCoreProps) {
+  if (props.kind === "excalidraw") {
+    return (
+      <Suspense fallback={<DocumentPreviewLoading phase="render" />}>
+        <ExcalidrawPreview {...props} />
+      </Suspense>
+    );
+  }
+  return <OfficeDocumentPreviewCore {...props} />;
+}
+
+function OfficeDocumentPreviewCore({
   kind,
   filename,
   fetchBlob,

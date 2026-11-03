@@ -2037,6 +2037,8 @@
     "saveFailed": "Save failed",
     "readFailed": "Read failed",
     "fileMaybeDeleted": "File may have been deleted",
+    "fileUnavailable": "The file does not exist, was not generated, or has been deleted.",
+    "diagramInvalid": "This Excalidraw file is invalid or damaged. Download the original file to inspect it.",
     "loadChildrenFailed": "Failed to load folder",
     "binaryHint": "This file may be binary — use Download",
     "emptyFile": "File is empty",

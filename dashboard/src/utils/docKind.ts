@@ -5,13 +5,14 @@
  * (image/video/audio), so viewers render them through DocumentPreviewCore.
  */
 
-export type DocKind = "pdf" | "word" | "excel" | "pptx" | "ppt";
+export type DocKind = "pdf" | "word" | "excel" | "pptx" | "ppt" | "excalidraw";
 
 const WORD_EXT = new Set(["docx", "doc"]);
 const EXCEL_EXT = new Set(["xlsx", "xls", "xlsm"]);
 
 export function getDocKind(path: string): DocKind | null {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "excalidraw") return "excalidraw";
   if (ext === "pdf") return "pdf";
   if (WORD_EXT.has(ext)) return "word";
   if (EXCEL_EXT.has(ext)) return "excel";

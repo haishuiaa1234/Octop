@@ -11,7 +11,9 @@ import {
   type TableHTMLAttributes,
   type ImgHTMLAttributes,
 } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import { Tooltip } from "antd";
+import { Download, Eye } from "lucide-react";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import {
@@ -24,6 +26,7 @@ import { loadMermaid } from "./mermaidLoader";
 import { HighlightedCode } from "./syntaxHighlight";
 import { useMathPlugins } from "./mathPlugins";
 import { stabilizeStreamingMarkdown } from "./stabilizeStreamingMarkdown";
+import { sandboxWorkspacePath } from "../../utils/workspaceFileLink";
 import styles from "./index.module.less";
 
 /* ---- Mermaid block component ---- */
@@ -262,6 +265,9 @@ export interface MarkdownProps {
   shellCommandDisabled?: boolean;
   shellCommandDisabledTitle?: string;
   shellCommandLabel?: string;
+  /** Producer of workspace files linked from this message. */
+  workspaceAgentId?: string | null;
+  onOpenWorkspaceFile?: (path: string, agentId?: string | null) => void;
 }
 
 const Markdown = memo(function Markdown({
@@ -273,6 +279,8 @@ const Markdown = memo(function Markdown({
   shellCommandDisabled,
   shellCommandDisabledTitle,
   shellCommandLabel,
+  workspaceAgentId,
+  onOpenWorkspaceFile,
 }: MarkdownProps) {
   const isDark = useIsDark();
   const { t } = useTranslation();
@@ -285,6 +293,9 @@ const Markdown = memo(function Markdown({
     useMathPlugins(renderContent);
   const remarkPlugins = useMemo(() => [remarkGfm, ...mathRemark], [mathRemark]);
   const rehypePlugins = useMemo(() => [...mathRehype], [mathRehype]);
+  const workspaceDownloadPrefix = workspaceAgentId
+    ? `/api/agents/${encodeURIComponent(workspaceAgentId)}/workspace/download?`
+    : null;
 
   return (
     <div
@@ -294,6 +305,15 @@ const Markdown = memo(function Markdown({
       style={style}
     >
       <ReactMarkdown
+        urlTransform={(url, key) => {
+          const path =
+            key === "href" && workspaceAgentId
+              ? sandboxWorkspacePath(url)
+              : null;
+          return path && workspaceDownloadPrefix
+            ? `${workspaceDownloadPrefix}path=${encodeURIComponent(path)}`
+            : defaultUrlTransform(url);
+        }}
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={{
@@ -412,10 +432,37 @@ const Markdown = memo(function Markdown({
             href?: string;
           } & AnchorHTMLAttributes<HTMLAnchorElement>) {
             if (isAuthDownloadHref(href)) {
+              const workspacePath =
+                workspaceDownloadPrefix &&
+                href?.startsWith(workspaceDownloadPrefix)
+                  ? new URLSearchParams(href.slice(href.indexOf("?") + 1)).get(
+                      "path",
+                    )
+                  : undefined;
               return (
-                <AuthFileDownloadLink url={href!} style={{ color: "inherit" }}>
-                  {children}
-                </AuthFileDownloadLink>
+                <span className={styles.workspaceFileLink}>
+                  <AuthFileDownloadLink
+                    url={href!}
+                    style={{ color: "inherit" }}
+                  >
+                    <Download size={14} aria-hidden /> {children}
+                  </AuthFileDownloadLink>
+                  {workspacePath && onOpenWorkspaceFile && (
+                    <Tooltip title={t("common.preview")}>
+                      <button
+                        type="button"
+                        className={styles.filePreviewButton}
+                        title={t("common.preview")}
+                        aria-label={t("common.preview")}
+                        onClick={() =>
+                          onOpenWorkspaceFile(workspacePath, workspaceAgentId)
+                        }
+                      >
+                        <Eye size={16} aria-hidden />
+                      </button>
+                    </Tooltip>
+                  )}
+                </span>
               );
             }
             return (

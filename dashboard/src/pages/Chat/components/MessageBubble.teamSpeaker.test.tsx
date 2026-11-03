@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import MessageBubble from "./MessageBubble";
 import type { ChatMessage } from "../hooks/useChat";
 import { ChatAgentProfileProvider } from "../ChatAgentProfileContext";
+import { ChatFilePreviewProvider } from "../ChatFilePreviewContext";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -63,6 +64,32 @@ function assistant(extra: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe("MessageBubble team speaker chrome", () => {
+  it("opens sandbox files in the producing member's workspace", async () => {
+    const open = vi.fn();
+    render(
+      <ChatFilePreviewProvider
+        openFilePreview={open}
+        openKnowledgeCitation={vi.fn()}
+      >
+        <MessageBubble
+          message={assistant({
+            speakerAgentId: "doctor",
+            content: "[Diagram](sandbox:/generated/flow.excalidraw)",
+          })}
+          agentId="host"
+        />
+      </ChatFilePreviewProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: "common.preview" },
+        { timeout: 10000 },
+      ),
+    );
+    expect(open).toHaveBeenCalledWith("generated/flow.excalidraw", "doctor");
+  });
+
   it("shows the completed response duration in seconds", () => {
     render(
       <MessageBubble
