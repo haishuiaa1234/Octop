@@ -1,4 +1,15 @@
 {
+  "benchmark": {
+    "errors": {
+      "revision_conflict": "This case changed while saving. Refresh and try again.",
+      "invalid_case": "Check the benchmark case fields and source status.",
+      "criteria_required": "A ready case requires a question and usable scoring criteria.",
+      "invalid_selection": "Select 1 to 100 distinct ready cases from this expert.",
+      "mixed_splits": "A run must use cases from a single train, development or test split.",
+      "not_reviewable": "This result is not available for manual review.",
+      "unsupported_expert": "Text benchmark runs require a local individual expert."
+    }
+  },
   "websites": {
     "invalid_url": "Enter an absolute HTTP or HTTPS URL without credentials or whitespace.",
     "users_required": "Select at least one allowed user.",

@@ -1,0 +1,51 @@
+CREATE TABLE IF NOT EXISTS benchmark_cases (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ case_id TEXT NOT NULL UNIQUE,
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ title TEXT NOT NULL DEFAULT '',
+ question TEXT NOT NULL DEFAULT '',
+ context TEXT NOT NULL DEFAULT '',
+ reference_answer TEXT NOT NULL DEFAULT '',
+ rubric TEXT NOT NULL DEFAULT '',
+ match_mode TEXT NOT NULL DEFAULT 'manual' CHECK(match_mode IN ('exact','contains','manual')),
+ keywords TEXT NOT NULL DEFAULT '[]',
+ tags TEXT NOT NULL DEFAULT '[]',
+ split TEXT NOT NULL DEFAULT 'test' CHECK(split IN ('train','dev','test')),
+ status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','needs_info','ready','disabled')),
+ source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','feedback')),
+ source_feedback_id TEXT,
+ source_snapshot TEXT NOT NULL DEFAULT '{}',
+ revision INTEGER NOT NULL DEFAULT 1,
+ created_at INTEGER NOT NULL,
+ updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS benchmark_cases_agent ON benchmark_cases(agent_id,updated_at);
+CREATE TABLE IF NOT EXISTS benchmark_candidates (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ candidate_id TEXT NOT NULL UNIQUE,
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ feedback_id TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','ignored')),
+ snapshot TEXT NOT NULL,
+ case_id TEXT REFERENCES benchmark_cases(case_id) ON DELETE SET NULL,
+ created_at INTEGER NOT NULL,
+ updated_at INTEGER NOT NULL,
+ UNIQUE(feedback_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS benchmark_candidates_agent ON benchmark_candidates(agent_id,user_id,updated_at);
+CREATE TABLE IF NOT EXISTS benchmark_runs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ run_id TEXT NOT NULL UNIQUE,
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ name TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','completed','cancelled','interrupted')),
+ config_snapshot TEXT NOT NULL,
+ results TEXT NOT NULL,
+ created_at INTEGER NOT NULL,
+ updated_at INTEGER NOT NULL,
+ finished_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS benchmark_runs_agent ON benchmark_runs(agent_id,updated_at);
+UPDATE _schema_version SET version = 23;

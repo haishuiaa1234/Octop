@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from octop.infra.auth.ldap.service import LdapAuthService
     from octop.infra.auth.ldap.throttle import LdapBindThrottle
     from octop.infra.auth.sso.service import SsoService
+    from octop.infra.benchmarks.runner import BenchmarkRunner
     from octop.infra.db.services import SharedServices
     from octop.infra.history.trajectory.service import TrajectoryService
 
@@ -251,6 +252,7 @@ class OctopServer:
         self.config: OctopConfig | None = None
         self.services: SharedServices | None = None
         self.app_runtime: AppRuntime | None = None
+        self.benchmark_runner: BenchmarkRunner | None = None
         self.expert_catalog: ExpertCatalog | None = None
         self.subagent_catalog: SubagentCatalog | None = None
         self.plugin_manager: PluginManager | None = None
@@ -570,6 +572,11 @@ class OctopServer:
 
         resume_pending_index_jobs(self.services)
 
+        from octop.infra.benchmarks.runner import BenchmarkRunner
+
+        self.benchmark_runner = BenchmarkRunner(self)
+        await self.benchmark_runner.recover()
+
         # Resume Bridge links that opted into auto-reconnect (best-effort).
         async def _resume_bridges() -> None:
             with suppress(Exception):
@@ -613,6 +620,9 @@ class OctopServer:
         try:
             from octop.infra.connectors.gateway import agently_auth
 
+            if self.benchmark_runner is not None:
+                await self.benchmark_runner.close()
+                self.benchmark_runner = None
             await agently_auth.close()
             if self.app_runtime is not None:
                 rt = self.app_runtime

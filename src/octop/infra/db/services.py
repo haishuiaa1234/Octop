@@ -10,6 +10,7 @@ from octop.infra.db.repos.agent_share_targets import AgentShareTargetRepo
 from octop.infra.db.repos.agents import AgentRepo
 from octop.infra.db.repos.audit import AuditRepo
 from octop.infra.db.repos.backends import BackendRepo
+from octop.infra.db.repos.benchmarks import BenchmarkRepo
 from octop.infra.db.repos.bridge_connections import BridgeConnectionRepo
 from octop.infra.db.repos.care_push import CarePushRepo
 from octop.infra.db.repos.channels import ChannelRepo
@@ -68,6 +69,7 @@ class RepoBundle:
     proactive_care_config_repo: ProactiveCareConfigRepo
     sso_repo: SsoRepo
     feedback_repo: FeedbackRepo
+    benchmark_repo: BenchmarkRepo
 
     @classmethod
     def from_pool(cls, db: DatabasePool) -> RepoBundle:
@@ -100,6 +102,7 @@ class RepoBundle:
             proactive_care_config_repo=ProactiveCareConfigRepo(db),
             sso_repo=SsoRepo(db),
             feedback_repo=FeedbackRepo(db),
+            benchmark_repo=BenchmarkRepo(db),
         )
 
 
@@ -112,6 +115,10 @@ class SharedServices:
     @property
     def feedback_repo(self) -> FeedbackRepo:
         return self.repos.feedback_repo
+
+    @property
+    def benchmark_repo(self) -> BenchmarkRepo:
+        return self.repos.benchmark_repo
 
     @property
     def db(self) -> DatabasePool:

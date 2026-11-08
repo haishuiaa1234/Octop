@@ -4,6 +4,7 @@ import { Alert, Empty } from "antd";
 import {
   Bot,
   Brain,
+  FlaskConical,
   Notebook,
   Puzzle,
   Sparkles,
@@ -18,6 +19,7 @@ import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import { userCan } from "../../../utils/permissions";
 import { isTeamAgent } from "../../../utils/teamAgent";
 import SkillsTabs from "../Skills/components/SkillsTabs";
+import Benchmark from "../Benchmark";
 import ToolsTabs from "../Tools/ToolsTabs";
 import SubagentManager from "../../Experts/components/SubagentManager";
 import MBTISelector from "./components/MBTISelector";
@@ -28,6 +30,7 @@ import styles from "./index.module.less";
 
 export type PersonalizationTab =
   | "skills"
+  | "benchmark"
   | "subagents"
   | "tools"
   | "plugins"
@@ -37,6 +40,7 @@ export type PersonalizationTab =
 
 const PERSONALIZATION_TABS = [
   "skills",
+  "benchmark",
   "subagents",
   "tools",
   "plugins",
@@ -47,6 +51,7 @@ const PERSONALIZATION_TABS = [
 
 const TAB_ICONS = {
   skills: Sparkles,
+  benchmark: FlaskConical,
   subagents: Bot,
   tools: Wrench,
   plugins: Puzzle,
@@ -140,6 +145,21 @@ export default function PersonalizationPage() {
         />
       ) : null}
       <div className={styles.panels}>
+        {isMounted("benchmark") && (
+          <div
+            className={styles.panel}
+            style={{ display: activeTab === "benchmark" ? "flex" : "none" }}
+            aria-hidden={activeTab !== "benchmark"}
+          >
+            {expertOnly(
+              <Benchmark
+                agentId={activeAgentId}
+                blocked={!!activeAgent?.bridge}
+                visible={activeTab === "benchmark"}
+              />,
+            )}
+          </div>
+        )}
         {isMounted("skills") && (
           <div
             className={styles.panel}

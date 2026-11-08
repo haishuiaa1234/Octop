@@ -63,6 +63,7 @@ export const pathToKey: Record<string, string> = {
   "/bridge": "bridge",
   "/personalization": "personalization",
   "/personalization/skills": "personalization",
+  "/personalization/benchmark": "personalization",
   "/personalization/tools": "personalization",
   "/personalization/plugins": "personalization",
   "/personalization/subagents": "personalization",
