@@ -77,6 +77,7 @@ export const pathToKey: Record<string, string> = {
   "/workbench": "workbench",
   "/workbench/terminal": "workbench",
   "/workbench/browser": "workbench",
+  "/workbench/cloud": "workbench",
   "/terminal": "workbench",
   "/remote-browser": "workbench",
   "/remote-desktop": "remote-desktop",
@@ -108,6 +109,7 @@ export const FULLSCREEN_PATHS = new Set([
   "/workbench",
   "/workbench/terminal",
   "/workbench/browser",
+  "/workbench/cloud",
   "/chat",
   "/remote-desktop",
   "/remote-desktop/desktop",
@@ -188,6 +190,7 @@ export const routeConfigs: RouteConfig[] = [
   { path: "/workbench", element: null },
   { path: "/workbench/terminal", element: null },
   { path: "/workbench/browser", element: null },
+  { path: "/workbench/cloud", element: null },
   {
     path: "/terminal",
     element: <RedirectPreserveSearch to="/workbench/terminal" />,

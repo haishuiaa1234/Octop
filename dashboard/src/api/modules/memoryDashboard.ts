@@ -11,6 +11,20 @@
 
 import { request } from "../request";
 
+export interface StrongMemoryFile {
+  content: string;
+  exists: boolean;
+}
+
+export interface ManualMemoryReview {
+  status: string;
+  conflicts: number;
+  duplicates: number;
+  checked: number;
+  remaining: number;
+  candidate_ids: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Wire types
 // ---------------------------------------------------------------------------
@@ -442,6 +456,12 @@ export interface MemoryStorageInspection {
   wal_size: number | null;
   reclaimable_bytes: number | null;
   auto_vacuum_enabled: boolean | null;
+  checkpoint_retention_enabled?: boolean | null;
+  checkpoint_keep_last?: number | null;
+  checkpoint_keep_days?: number | null;
+  checkpoint_backup_before_prune?: "first" | "always" | "off" | null;
+  checkpoint_backup_keep_days?: number | null;
+  checkpoint_vacuum_recommended?: boolean | null;
   tables: {
     table: string;
     exists: boolean;
@@ -533,6 +553,45 @@ export const memoryDashboardApi = {
       method: "POST",
       body: JSON.stringify({ confirmed: true }),
     }),
+
+  getStrongMemory: (agentId: string) =>
+    request<StrongMemoryFile>(
+      `/agents/${encodeURIComponent(agentId)}/memory/strong`,
+    ),
+
+  putStrongMemory: (agentId: string, content: string) =>
+    request<StrongMemoryFile>(
+      `/agents/${encodeURIComponent(agentId)}/memory/strong`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    ),
+
+  getUserProfile: (agentId: string) =>
+    request<StrongMemoryFile>(
+      `/agents/${encodeURIComponent(agentId)}/memory/user`,
+    ),
+
+  putUserProfile: (agentId: string, content: string) =>
+    request<StrongMemoryFile>(
+      `/agents/${encodeURIComponent(agentId)}/memory/user`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    ),
+
+  getManualMemoryReview: (agentId: string) =>
+    request<ManualMemoryReview>(
+      `/agents/${encodeURIComponent(agentId)}/memory/manual-review`,
+    ),
+
+  reviewManualMemory: (agentId: string) =>
+    post<ManualMemoryReview>(
+      `/agents/${encodeURIComponent(agentId)}/memory/manual-review`,
+      {},
+    ),
 
   // listings
   listAtoms: (aid: string, body?: ListAtomsBody) =>

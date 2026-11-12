@@ -13,6 +13,8 @@ from octop.infra.utils.weixin_context import with_weixin_send_token
 # Persisted on HumanMessage.additional_kwargs for dashboard history UI.
 COMPOSER_CTX_KEY = "octop_composer_context"
 INBOUND_ATTACHMENTS_KEY = "octop_inbound_attachments"
+# Who sent this user turn. Shared conversations render a different portrait per person.
+AUTHOR_USER_ID_KEY = "octop_author_user_id"
 # Must match octop_harness.messages.CHECKPOINT_TS_KEY (epoch-ms).
 CHECKPOINT_TS_KEY = "checkpoint_ts"
 # Persisted on AIMessage.additional_kwargs when a stream fails mid-turn.
@@ -94,6 +96,7 @@ def resolve_user_id_for_message(
     if msg.channel_type in (
         ThreadRegistry.CHANNEL_DASHBOARD,
         ThreadRegistry.CHANNEL_CLI,
+        ThreadRegistry.CHANNEL_MCP,
     ):
         sid = subject_id_from_message(msg)
         try:

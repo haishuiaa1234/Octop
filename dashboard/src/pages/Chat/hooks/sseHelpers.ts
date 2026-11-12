@@ -65,10 +65,89 @@ export interface UserComposerContext {
   reasoningEffort?: string | null;
 }
 
+export interface DecisionNoticePart {
+  kind: "skill" | "tool" | "member" | "result";
+  /** Null when that catalog was left unchanged. An empty list means it was narrowed to nothing extra. */
+  kept: Array<{ name: string; score?: number }> | null;
+}
+
+/** Notice that a decision model narrowed this reply. Stored on the assistant message. */
+export interface DecisionNotice {
+  model: string;
+  empty: boolean;
+  /** Set when the decision service failed and the catalog was left unchanged. */
+  error?: "request_failed";
+  /** A sanitized failure category such as `timeout` or `HTTP 503`. */
+  errorDetail?: string;
+  parts: DecisionNoticePart[];
+}
+
+export function parseDecisionNotice(data: unknown): DecisionNotice | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = data as Record<string, unknown>;
+  if (raw.kind !== "decision") return null;
+  const partsRaw = Array.isArray(raw.parts) ? raw.parts : [];
+  const parts: DecisionNoticePart[] = [];
+  for (const item of partsRaw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const kind = row.kind;
+    if (
+      kind !== "skill" &&
+      kind !== "tool" &&
+      kind !== "member" &&
+      kind !== "result"
+    ) {
+      continue;
+    }
+    if (row.kept == null) {
+      parts.push({ kind, kept: null });
+      continue;
+    }
+    if (!Array.isArray(row.kept)) continue;
+    const kept = row.kept.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const name = (entry as { name?: unknown }).name;
+      if (typeof name !== "string" || !name.trim()) return [];
+      const score = (entry as { score?: unknown }).score;
+      return [
+        {
+          name,
+          ...(typeof score === "number" ? { score } : {}),
+        },
+      ];
+    });
+    parts.push({ kind, kept });
+  }
+  return {
+    model: typeof raw.model === "string" ? raw.model : "",
+    empty: raw.empty === true,
+    ...(raw.error === "request_failed"
+      ? {
+          error: "request_failed" as const,
+          ...(typeof raw.detail === "string" && raw.detail.trim()
+            ? { errorDetail: raw.detail.trim() }
+            : {}),
+        }
+      : {}),
+    parts,
+  };
+}
+
+export interface MessageAuthor {
+  userId: number;
+  displayName: string;
+  username: string;
+  avatarUrl?: string | null;
+  avatarIcon?: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  /** Who asked this question. Shared conversations use it for the portrait. */
+  author?: MessageAuthor;
   type?: string;
   /** Structured content blocks for multi-part messages (thinking + text). */
   contentBlocks?: ContentBlockItem[];
@@ -79,15 +158,21 @@ export interface ChatMessage {
   toolData?: ToolCallData;
   hitlData?: HitlRequestData;
   usage?: TokenUsage;
+  /** Wall time from request accept to finished output, in milliseconds. */
+  durationMs?: number;
   metadata?: MessageMetadata;
   errorInfo?: ProcessErrorInfo;
   status?: "streaming" | "done" | "error";
   timestamp: number;
+  /** Created in this running store; restored browser caches never set this. */
+  localPending?: boolean;
   /**
    * Team room speaker. When a member is fanned into the host thread, this is
    * that member's agent id so the bubble can render as a separate person.
    */
   speakerAgentId?: string;
+  /** Server turn that produced this bubble. Different ids must not merge. */
+  turnId?: string;
   /** Host wrap-up after members — never continue the dispatch bubble. */
   teamWrapup?: boolean;
   /**
@@ -97,11 +182,16 @@ export interface ChatMessage {
    * persisted for the process panel.
    */
   editedFiles?: string[];
+  /** Decision-model pass for this turn. Shown inside the process fold. */
+  decision?: DecisionNotice;
 }
 
 /** Per-session state held in the chat store's module-scoped Map. */
 export interface SessionStreamState {
+  /** Map key this bucket is stored under. Pending ids are rewritten on rename. */
+  sessionKey?: string;
   messages: ChatMessage[];
+  historyEpoch?: number;
   isStreaming: boolean;
   /** Wall-clock ms when the current user turn started waiting on the model. */
   thinkingStartedAt: number | null;
@@ -144,6 +234,8 @@ export interface SessionStreamState {
   liveSpeakers: Set<string>;
   /** Mid-turn steer: ``turn.started`` / ``turn.resumed`` id (issue #1300). */
   activeTurnId?: string | null;
+  /** User who started ``activeTurnId``. Shared sessions block everyone else. */
+  activeTurnUserId?: number | null;
   /** Server-acked undrained steers (internal; drives transcript lifecycle). */
   pendingSteers: Array<{
     clientPendingId: string;

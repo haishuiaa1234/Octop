@@ -123,6 +123,7 @@ class CronDeliveryService:
             projected = message_inputs(appended, dedupe_missing_ids=True)
 
         self._project_best_effort(session.thread_id, projected)
+        self._remember_thread_title(session, command)
         await self._gateway.push_session_text(
             session,
             command.prompt,
@@ -173,6 +174,7 @@ class CronDeliveryService:
             # ``fresh_thread`` already put an empty thread on the session, so a run
             # that raised before this left a conversation with no rows at all.
             self._project_best_effort(session.thread_id, tracker.inputs)
+            self._remember_thread_title(session, command)
         if usage.usage is not None:
             record_turn_usage(
                 self._repos.usage_repo,
@@ -196,35 +198,39 @@ class CronDeliveryService:
     ) -> dict[str, Any]:
         from octop.infra.agents.teams import is_team_agent
 
-        if is_team_agent(self._agent_manager.get_row(command.agent_id)):
+        row = self._agent_manager.get_row(command.agent_id)
+        if is_team_agent(row):
+            requested: list[str] = []
             servers: list[str] = []
+            shown_servers: list[str] = []
         else:
-            servers = [name.strip() for name in command.mcp_servers if name.strip()]
+            owner_raw = getattr(row, "user_id", None) if row is not None else None
+            owner_id = owner_raw if isinstance(owner_raw, int) else None
+            picked = [name.strip() for name in command.mcp_servers if name.strip()]
             extra_defaults = self._agent_manager.default_mcp_servers(command.agent_id)
-            if servers:
-                servers = (
-                    self._agent_manager.merge_turn_mcp_servers(
-                        session.user_id,
-                        servers,
-                        apply_defaults=False,
-                        extra_defaults=extra_defaults,
-                    )
-                    or []
+            requested = (
+                self._agent_manager.merge_turn_mcp_servers(
+                    session.user_id,
+                    picked or None,
+                    apply_defaults=not picked,
+                    extra_defaults=extra_defaults,
+                    agent_owner_id=owner_id,
                 )
-            else:
-                servers = (
-                    self._agent_manager.merge_turn_mcp_servers(
-                        session.user_id,
-                        None,
-                        apply_defaults=True,
-                        extra_defaults=extra_defaults,
-                    )
-                    or []
+                or []
+            )
+            servers = requested
+            shown_servers = requested
+            if owner_id is not None and owner_id != session.user_id and requested:
+                servers = self._agent_manager.align_mcp_names_to_harness(
+                    owner_id, session.user_id, requested
                 )
-        if servers:
+                shown_servers = self._agent_manager.mcp_names_for_chips(
+                    owner_id, session.user_id, requested, servers
+                )
+        if requested:
             failed = await self._agent_manager.prepare_chat_mcp(
                 command.agent_id,
-                servers,
+                requested,
                 connector_user_id=session.user_id,
             )
             if failed:
@@ -233,7 +239,7 @@ class CronDeliveryService:
         row = self._agent_manager.get_row(command.agent_id)
         default_model = (row.default_model if row is not None else None) or None
         composer = build_composer_context(
-            mcp_servers=servers or None,
+            mcp_servers=shown_servers or None,
             skills=None,
             target_agent_ids=None,
             model_ref=command.model,
@@ -281,6 +287,26 @@ class CronDeliveryService:
             is_admin=is_admin,
             locale=locale,
         )
+
+    def _remember_thread_title(self, session: SessionRow, command: CronDeliveryCommand) -> None:
+        """Name the conversation when the scheduled run writes it.
+
+        Push only titles dashboard/CLI sessions, and only after the channel
+        accepts the text. A failed push, an IM target, or an agent run that
+        died after projecting history left ``threads.title`` null until the
+        user sent the next message.
+        """
+        title = (command.cron_name or "").strip() or (command.prompt or "").strip()
+        if not title:
+            return
+        try:
+            self._gateway.thread_registry.set_title_if_null(session.thread_id, title)
+        except Exception:
+            logger.warning(
+                "failed to title cron thread=%s",
+                session.thread_id,
+                exc_info=True,
+            )
 
     def _project_best_effort(
         self,
