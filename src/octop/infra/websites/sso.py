@@ -7,6 +7,7 @@ import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from octop.infra.crypto.fernet import PURPOSE_SSO, open_secret_bytes, seal_secret_bytes
 from octop.infra.db.services import SharedServices
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.users.identity import User
@@ -122,7 +123,10 @@ class WebsiteSsoService:
         if loaded[1].auth_mode != "octop":
             raise OctopError.localized(ErrorCode.WEBSITE_SSO_NOT_CONFIGURED, user.locale)
         secret = secrets.token_urlsafe(48)
-        self.services.secret_repo.set(_SECRET_PREFIX + website_id, _hash(secret))
+        self.services.secret_repo.put(
+            _SECRET_PREFIX + website_id,
+            seal_secret_bytes(self.services.secret_repo, PURPOSE_SSO, _hash(secret)),
+        )
         self.services.audit_repo.user_event(
             user.username, "website.sso-secret.rotate", target=website_id
         )
@@ -141,6 +145,7 @@ class WebsiteSsoService:
         secret_hash = self.services.secret_repo.get(_SECRET_PREFIX + website_id)
         if site.auth_mode != "octop" or site.sso_callback_url is None or secret_hash is None:
             raise OctopError.localized(ErrorCode.WEBSITE_SSO_NOT_CONFIGURED, user.locale)
+        secret_hash = open_secret_bytes(self.services.secret_repo, PURPOSE_SSO, secret_hash)
         if url_origin(site.url) == url_origin(public_base):
             raise OctopError.localized(ErrorCode.WEBSITE_SSO_INVALID_ORIGIN, user.locale)
         now = int(time.time())
@@ -169,10 +174,11 @@ class WebsiteSsoService:
         repo = self.services.website_repo
         repo.cleanup_sso_codes(now)
         secret_key = _SECRET_PREFIX + data.website_id
-        secret_hash = self.services.secret_repo.get(secret_key)
-        if secret_hash is None or not secrets.compare_digest(
-            secret_hash, _hash(data.client_secret)
-        ):
+        stored_secret = self.services.secret_repo.get(secret_key)
+        if stored_secret is None:
+            raise failure
+        secret_hash = open_secret_bytes(self.services.secret_repo, PURPOSE_SSO, stored_secret)
+        if not secrets.compare_digest(secret_hash, _hash(data.client_secret)):
             raise failure
         code_hash = _hash(data.code).hex()
         raw_grant = repo.get_sso_code(code_hash)
@@ -206,7 +212,7 @@ class WebsiteSsoService:
             website_id=data.website_id,
             website_value=raw_site,
             secret_key=secret_key,
-            secret_hash=secret_hash,
+            secret_hash=stored_secret,
             user_id=user.id,
             user_role=user.role,
         ):

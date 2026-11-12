@@ -150,10 +150,11 @@ describe("sidebarNavLayout", () => {
     expect(shown).not.toContain("admin-users");
     expect(shown).not.toContain("channels");
     expect(shown).toContain("chat");
-    expect(shown).toContain("personalization");
+    expect(shown).not.toContain("personalization");
+    expect(sections.map((section) => section.id)).not.toContain("settings");
     expect(
       visibleEditorGroups(editor, sections).map((group) => group.id),
-    ).toEqual(["settings", "c_aabbccdd"]);
+    ).toEqual(["c_aabbccdd"]);
   });
 
   it("keeps a new empty group only in the editor", () => {

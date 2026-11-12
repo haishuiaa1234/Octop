@@ -224,6 +224,25 @@ async def accept_candidate(
 
 
 @router.post(
+    "/feedback/{feedback_id}/accept",
+    response_model=CaseOut,
+    summary="Review global answer feedback into a ready benchmark case",
+    description="Administrator only. Feedback must belong to this expert. Requires explicit reviewed question and grading criteria. Repeated acceptance returns the existing case; the original source remains private to its author and administrators.",
+)
+async def accept_feedback(
+    agent_id: str,
+    feedback_id: str,
+    data: CaseInput,
+    user: User = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> Any:
+    return await _result(
+        BenchmarkService(server).accept_feedback(user, agent_id, feedback_id, data.model_dump()),
+        user,
+    )
+
+
+@router.post(
     "/candidates/{candidate_id}/ignore",
     response_model=CandidateOut,
     summary="Ignore a feedback candidate",

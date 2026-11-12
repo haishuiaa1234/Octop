@@ -19,6 +19,7 @@ vi.mock("../../../api/modules/benchmarks", () => ({
     candidates: vi.fn(),
     runs: vi.fn(),
     updateCase: vi.fn(),
+    createRun: vi.fn(),
   },
 }));
 beforeEach(() => {
@@ -27,6 +28,66 @@ beforeEach(() => {
   vi.mocked(benchmarkApi.runs).mockResolvedValue([]);
 });
 describe("benchmark scope", () => {
+  it("updates the center URL tab after starting a run", async () => {
+    vi.mocked(benchmarkApi.cases).mockResolvedValue([
+      {
+        ...emptyCase,
+        case_id: "ready",
+        agent_id: "a",
+        title: "Ready case",
+        question: "Q",
+        reference_answer: "A",
+        status: "ready",
+        source: "manual",
+        source_snapshot: {},
+        revision: 1,
+        created_at: 0,
+        updated_at: 0,
+      },
+    ]);
+    vi.mocked(benchmarkApi.createRun).mockResolvedValue({} as never);
+    const onTabChange = vi.fn();
+    render(<Benchmark agentId="a" onTabChange={onTabChange} />);
+    await screen.findByText("Ready case");
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    fireEvent.change(screen.getByPlaceholderText("benchmark.runName"), {
+      target: { value: "Regression" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "benchmark.startRun" }));
+    await waitFor(() => expect(onTabChange).toHaveBeenCalledWith("runs"));
+  });
+  it("shows global feedback without an expert and disables expert-only tabs", () => {
+    render(
+      <Benchmark
+        agentId={null}
+        initialTab="candidates"
+        feedbackPanel={<div>Global inbox</div>}
+      />,
+    );
+    expect(screen.getByText("Global inbox")).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "benchmark.cases" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(benchmarkApi.cases).not.toHaveBeenCalled();
+  });
+  it("reports tab changes and retains refresh for administrators outside feedback", async () => {
+    vi.mocked(benchmarkApi.cases).mockResolvedValue([]);
+    const onTabChange = vi.fn();
+    render(
+      <Benchmark
+        agentId="a"
+        initialTab="candidates"
+        feedbackPanel={<div>Global inbox</div>}
+        onTabChange={onTabChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "benchmark.cases" }));
+    expect(onTabChange).toHaveBeenCalledWith("cases");
+    expect(
+      screen.getByRole("button", { name: "benchmark.refresh" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(benchmarkApi.cases).toHaveBeenCalledWith("a"));
+  });
   it("queues a fresh request after a mutation while an older refresh is pending", async () => {
     const item: BenchmarkCase = {
       ...emptyCase,

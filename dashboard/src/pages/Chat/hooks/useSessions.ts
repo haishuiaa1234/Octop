@@ -21,7 +21,6 @@ export interface Session {
   isActive?: boolean;
   hasActivity?: boolean;
   pinned?: boolean;
-  unreadCount?: number;
   modelRef?: string | null;
   reasoningMode?: "auto" | "enabled" | "disabled" | null;
   reasoningEffort?: string | null;
@@ -31,6 +30,10 @@ export interface Session {
   artifacts?: ThreadArtifact[];
   turnActive?: boolean;
   awaitingUser?: boolean;
+  unreadCount?: number;
+  contributed?: boolean;
+  /** False when another user contributed this conversation. */
+  owned?: boolean;
 }
 
 /** Result of probing whether a thread exists for the current agent. */
@@ -45,7 +48,6 @@ export function toSession(row: {
   is_active?: boolean;
   has_messages?: boolean;
   pinned?: boolean;
-  unread_count?: number;
   model_ref?: string | null;
   reasoning_mode?: "auto" | "enabled" | "disabled" | null;
   reasoning_effort?: string | null;
@@ -57,6 +59,9 @@ export function toSession(row: {
   agent_id?: string | null;
   turn_active?: boolean;
   awaiting_user?: boolean;
+  unread_count?: number;
+  contributed?: boolean;
+  owned?: boolean;
 }): Session {
   const hasActivity =
     Boolean(row.has_messages) || Boolean(row.title) || row.last_active > 0;
@@ -76,7 +81,6 @@ export function toSession(row: {
     isActive: row.is_active ?? false,
     hasActivity,
     pinned: Boolean(row.pinned),
-    unreadCount: row.unread_count ?? 0,
     modelRef: row.model_ref ?? null,
     reasoningMode: row.reasoning_mode ?? null,
     reasoningEffort: row.reasoning_effort ?? null,
@@ -92,7 +96,19 @@ export function toSession(row: {
     ),
     turnActive: Boolean(row.turn_active),
     awaitingUser: Boolean(row.awaiting_user),
+    unreadCount: row.unread_count ?? 0,
+    contributed: Boolean(row.contributed),
+    owned: row.owned !== false,
   };
+}
+
+/** Update one thread already held in the chat session store. */
+export function patchStoredSession(id: string, patch: Partial<Session>) {
+  setModuleSessions((prev) =>
+    prev.map((session) =>
+      session.id === id ? { ...session, ...patch } : session,
+    ),
+  );
 }
 
 /** Mirror server order: pinned first, then recency (empty chats use created_at). */
@@ -138,7 +154,8 @@ export function clearPendingThread(threadId: string) {
   _pendingThreadIds.delete(threadId);
 }
 
-export function clearSessionUnreadCounts() {
+export function clearSessionUnreadCounts(agentId?: string) {
+  if (agentId && agentId !== _storeAgentId) return;
   setModuleSessions((prev) => {
     const hasUnread = prev.some((session) => (session.unreadCount ?? 0) > 0);
     if (!hasUnread) return prev;
@@ -529,6 +546,32 @@ export function useSessions(agentId: string | null) {
 
   useEffect(() => {
     return onSessionEvent((event) => {
+      if (event.kind === "sessionRenamed") {
+        const title = formatThreadTitle(event.title);
+        if (!title) return;
+        if (event.agentId && event.agentId !== _storeAgentId) return;
+        setModuleSessions((prev) => {
+          const hasId = prev.some((session) => session.id === event.sessionId);
+          return prev.map((session) => {
+            const matches =
+              session.id === event.sessionId ||
+              (Boolean(event.agentId) &&
+                event.agentId === _storeAgentId &&
+                !hasId &&
+                session.id === "__pending__");
+            if (!matches) return session;
+            if (
+              event.provisional &&
+              session.name &&
+              session.name !== "New Chat"
+            ) {
+              return session;
+            }
+            return { ...session, name: title };
+          });
+        });
+        return;
+      }
       if (event.kind !== "sessionDeleted") return;
       const { sessionId } = event;
       setModuleSessions((prev) => prev.filter((s) => s.id !== sessionId));
@@ -590,7 +633,7 @@ export function useSessions(agentId: string | null) {
     async (id: string, compact: boolean) => {
       if (!agentId || !id) return false;
       const deleted = await deleteConversation(agentId, id, compact, t);
-      if (!deleted) return false;
+      if (deleted !== true) return deleted;
       setModuleSessions((prev) => prev.filter((s) => s.id !== id));
       chatStore.removeSession(id);
       chatStore.emitSessionEvent({ kind: "sessionDeleted", sessionId: id });

@@ -7,6 +7,7 @@ from datetime import datetime
 
 from octop.infra.db.pool import DatabasePool
 from octop.infra.db.repos._base import UNSET, DbRow, bool_int, map_rows, now_ts, optional_updates
+from octop.infra.users.groups import RESOURCE_EXPERT, group_visibility_sql
 
 
 def _unix_ts(value: object) -> int:
@@ -245,18 +246,34 @@ class AgentRepo:
         exclude_user_id: int | None = None,
         user_id: int | None = None,
         role_id: str | None = None,
+        viewer_user_id: int | None | object = UNSET,
     ) -> list[AgentRow]:
+        """Enabled shared/group-visible agents plus explicit user/role grants.
+
+        An omitted viewer uses user_id; explicit None bypasses group filtering.
+        """
         sql = "SELECT DISTINCT a.* FROM agents a"
         params: list[object] = []
+        if user_id is None and isinstance(viewer_user_id, int):
+            user_id = viewer_user_id
+        if viewer_user_id is UNSET:
+            viewer_user_id = user_id
         if user_id is not None or role_id is not None:
             sql += " LEFT JOIN agent_share_targets t ON t.agent_id = a.agent_id"
-        sql += " WHERE a.enabled = 1 AND (a.is_shared = 1"
+        sql += " WHERE a.enabled = 1 AND ((a.is_shared = 1"
+        if isinstance(viewer_user_id, int):
+            sql += f" AND ({group_visibility_sql(RESOURCE_EXPERT, 'a.agent_id')})"
+            params.append(viewer_user_id)
+        sql += ")"
         if user_id is not None:
             sql += " OR (t.target_type = 'user' AND t.target_id = ?)"
             params.append(str(user_id))
         if role_id is not None:
             sql += " OR (t.target_type = 'role' AND t.target_id = ?)"
             params.append(role_id)
+        elif user_id is not None:
+            sql += " OR (t.target_type = 'role' AND t.target_id = (SELECT role FROM users WHERE id = ?))"
+            params.append(user_id)
         sql += ")"
         if exclude_user_id is not None:
             sql += " AND (a.user_id IS NULL OR a.user_id != ?)"

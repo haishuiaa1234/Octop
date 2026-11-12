@@ -1,7 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { emitSessionEvent } from "./chatStore";
 import {
   resetSessionStoreForTests,
+  clearSessionUnreadCounts,
   sortSessions,
   toSession,
   useSessions,
@@ -9,11 +11,12 @@ import {
 } from "./useSessions";
 
 const listMock = vi.fn();
+const createMock = vi.fn();
 
 vi.mock("../../../api/modules/octopThreads", () => ({
   octopThreadsApi: {
     list: (...args: unknown[]) => listMock(...args),
-    create: vi.fn(),
+    create: (...args: unknown[]) => createMock(...args),
     delete: vi.fn(),
     patch: vi.fn(),
     rename: vi.fn(),
@@ -93,10 +96,23 @@ describe("useSessions agent switch", () => {
   beforeEach(() => {
     resetSessionStoreForTests();
     listMock.mockReset();
+    createMock.mockReset();
   });
 
   afterEach(() => {
     resetSessionStoreForTests();
+  });
+
+  it("ignores a late mark-read response for a different agent", async () => {
+    listMock.mockResolvedValue([{ ...threadRow("thread-b"), unread_count: 3 }]);
+    const { result } = renderHook(() => useSessions("agent-b"));
+    await waitFor(() =>
+      expect(result.current.sessions[0]?.unreadCount).toBe(3),
+    );
+    act(() => clearSessionUnreadCounts("agent-a"));
+    expect(result.current.sessions[0].unreadCount).toBe(3);
+    act(() => clearSessionUnreadCounts("agent-b"));
+    expect(result.current.sessions[0].unreadCount).toBe(0);
   });
 
   it("clears previous-agent threads on the first render of a new agent", async () => {
@@ -178,5 +194,40 @@ describe("useSessions agent switch", () => {
     });
     expect(probe).toBe("found");
     expect(listMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps another agent's delayed title off the pending chat", async () => {
+    listMock.mockResolvedValue([]);
+    createMock.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useSessions("agent-b"));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    act(() => {
+      result.current.createSession();
+    });
+    expect(result.current.sessions[0]?.id).toBe("__pending__");
+
+    act(() => {
+      emitSessionEvent({
+        kind: "sessionRenamed",
+        sessionId: "thr_a",
+        agentId: "agent-a",
+        title: "来自 A",
+      });
+    });
+    expect(result.current.sessions[0]?.name).toBe("New Chat");
+
+    act(() => {
+      emitSessionEvent({
+        kind: "sessionRenamed",
+        sessionId: "thr_b",
+        agentId: "agent-b",
+        title: "本会话",
+        provisional: true,
+      });
+    });
+    expect(result.current.sessions[0]?.name).toBe("本会话");
   });
 });

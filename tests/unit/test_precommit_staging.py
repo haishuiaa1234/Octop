@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.git import isolated_git_env
+
 HOOK = Path(__file__).resolve().parents[2] / ".githooks" / "pre-commit"
 BASH = shutil.which("bash")
 if os.name == "nt" and (git := shutil.which("git")):
@@ -27,6 +29,7 @@ def test_refresh_staged_files_without_argument_limit(tmp_path: Path, file_count:
             input=input_bytes,
             capture_output=True,
             check=True,
+            env=isolated_git_env(),
         )
         return result.stdout
 
@@ -63,7 +66,7 @@ def test_refresh_staged_files_without_argument_limit(tmp_path: Path, file_count:
         capture_output=True,
         text=True,
         encoding="utf-8",
-        env={**os.environ, "SKIP_PRECOMMIT": "0"},
+        env={**isolated_git_env(), "SKIP_PRECOMMIT": "0"},
         timeout=60,
         check=False,
     )

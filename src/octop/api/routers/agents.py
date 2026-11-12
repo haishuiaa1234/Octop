@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from pydantic import Field
 
 from octop.api.common.agent import (
+    apply_agent_audience,
     assert_agent_access,
     assert_agent_access_row,
     assert_agent_owner,
@@ -40,6 +41,7 @@ from octop.infra.agents.settings.runtime_limits import (
     agent_runtime_values,
 )
 from octop.infra.errors import ErrorCode, OctopError
+from octop.infra.users.groups import RESOURCE_EXPERT, GroupAccess
 from octop.infra.users.permissions import user_has_permission
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,8 @@ class AgentCreateBody(AgentRuntimeFields):
     icon: str | None = None
     template_name: str | None = None
     is_shared: bool = False
+    visibility: Literal["owner", "all", "groups"] | None = None
+    group_ids: list[str] | None = None
     color: str | None = None
     icon_name: str | None = None
     icon_url: str | None = None
@@ -78,6 +82,8 @@ class AgentPatchBody(AgentRuntimeFields):
     icon: str | None = None
     template_name: str | None = None
     is_shared: bool | None = None
+    visibility: Literal["owner", "all", "groups"] | None = None
+    group_ids: list[str] | None = None
     color: str | None = None
     icon_name: str | None = None
     icon_url: str | None = None
@@ -147,6 +153,42 @@ def _agent_icon_url(row: Any, cfg: dict[str, Any]) -> str | None:
     return team_icon_url(stored)
 
 
+def _viewer_mcp_servers(
+    row: Any,
+    *,
+    viewer_user_id: int | None,
+    server: Any | None,
+) -> list[str]:
+    """MCP names for this viewer. Shared custom servers use the catalog name."""
+    if (getattr(row, "kind", None) or "expert") == "team":
+        return []
+    names = id_list_from_row(row, "mcp_servers")
+    owner_id = getattr(row, "user_id", None)
+    if (
+        not names
+        or viewer_user_id is None
+        or not isinstance(owner_id, int)
+        or owner_id == viewer_user_id
+        or server is None
+    ):
+        return names
+    registry = getattr(getattr(server, "app_runtime", None), "agent_registry", None)
+    present = getattr(registry, "present_mcp_names_for_viewer", None)
+    if not callable(present):
+        return names
+    return list(present(owner_id, viewer_user_id, names))
+
+
+def _same_user_id(left: Any, right: Any) -> bool:
+    """True when both ids are present and numerically equal."""
+    if left is None or right is None:
+        return False
+    try:
+        return int(left) == int(right)
+    except (TypeError, ValueError):
+        return False
+
+
 def _row_dict(
     row: Any,
     *,
@@ -192,15 +234,11 @@ def _row_dict(
         "color": row.color or cfg.get("color"),
         "skill_package_ids": packages,
         "knowledge_base_ids": id_list_from_row(row, "knowledge_base_ids"),
-        "mcp_servers": (
-            []
-            if (getattr(row, "kind", None) or "expert") == "team"
-            else id_list_from_row(row, "mcp_servers")
-        ),
+        "mcp_servers": _viewer_mcp_servers(row, viewer_user_id=viewer_user_id, server=server),
         "published_expert_id": row.published_expert_id,
         "welcome_message": welcome_from_row(row),
         "is_shared": bool(int(getattr(row, "is_shared", 0) or 0)),
-        "is_owner": row.user_id is not None and row.user_id == viewer_user_id,
+        "is_owner": _same_user_id(row.user_id, viewer_user_id),
         "owner_username": owner_username,
         "kind": getattr(row, "kind", None) or "expert",
         **agent_runtime_values(cfg),
@@ -218,6 +256,15 @@ def _row_dict(
             payload["member_ids"] = []
     if bootstrap_pending is not None:
         payload["bootstrap_pending"] = bootstrap_pending
+    repos = getattr(getattr(server, "services", None), "repos", None)
+    if repos is not None:
+        payload.update(
+            GroupAccess(repos).visibility(
+                RESOURCE_EXPERT,
+                row.agent_id,
+                shared=payload["is_shared"],
+            )
+        )
     return payload
 
 
@@ -267,7 +314,10 @@ async def list_agents(
 
     owned = registry.list_agents(user.id)
     shared = server.services.agent_repo.list_shared(
-        exclude_user_id=user.id, user_id=user.id, role_id=user.role
+        exclude_user_id=user.id,
+        user_id=user.id,
+        role_id=user.role,
+        viewer_user_id=None if user.is_admin else user.id,
     )
     rows = list({row.agent_id: row for row in [*shared, *owned]}.values())
     owner_username_by_id: dict[int, str] = {user.id: user.username}
@@ -361,6 +411,8 @@ async def create_agent(
         knowledge_base_ids=knowledge_ids,
         mcp_servers=mcp_servers,
     )
+    if body.visibility is not None:
+        GroupAccess(server.services.repos).validate_visibility(body.visibility, body.group_ids)
     row = await server.app_runtime.agent_registry.create(spec)
     replace_share_targets(
         server,
@@ -369,6 +421,14 @@ async def create_agent(
         role_ids=body.shared_role_ids,
     )
     row = server.app_runtime.agent_registry.get_row(row.agent_id) or row
+    if body.visibility is not None:
+        row = await apply_agent_audience(
+            server,
+            row.agent_id,
+            visibility=body.visibility,
+            group_ids=body.group_ids,
+            shared=body.is_shared,
+        )
     return _row_dict(
         row,
         viewer_user_id=user.id,
@@ -406,7 +466,7 @@ async def get_agent(
     if row is None:
         raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
     targets = server.services.agent_share_target_repo.list_for_agent(agent_id)
-    assert_agent_access_row(row, user, share_targets=targets)
+    assert_agent_access_row(row, user, share_targets=targets, repos=server.services.repos)
     return _row_dict(
         row,
         viewer_user_id=user.id,
@@ -445,6 +505,8 @@ async def patch_agent(
         not in {
             "config",
             "is_shared",
+            "visibility",
+            "group_ids",
             "welcome_message",
             "skill_package_ids",
             "knowledge_base_ids",
@@ -478,8 +540,14 @@ async def patch_agent(
         refreshed = server.app_runtime.agent_registry.get_row(agent_id)
         if refreshed is not None:
             row = refreshed
-    if body.is_shared is not None:
-        row = await server.app_runtime.agent_registry.set_shared(agent_id, body.is_shared)
+    if body.visibility is not None or body.is_shared is not None:
+        row = await apply_agent_audience(
+            server,
+            agent_id,
+            visibility=body.visibility,
+            group_ids=body.group_ids,
+            shared=body.is_shared,
+        )
     if "shared_user_ids" in body.model_fields_set or "shared_role_ids" in body.model_fields_set:
         current_users, current_roles = share_target_ids(server, agent_id)
         replace_share_targets(

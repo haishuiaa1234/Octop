@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { THEME_STORAGE_KEY } from "./themePalettes";
 
-const INDEX_HTML = readFileSync(resolve(__dirname, "../../index.html"), "utf8");
+const INDEX_HTML = readFileSync(
+  resolve(__dirname, "../../index.html"),
+  "utf8",
+).replaceAll("%BASE_URL%", "/");
 
 describe("boot favicon branding", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -35,9 +38,7 @@ describe("boot favicon branding", () => {
         );
       });
       expect(doc.querySelector("#octop-boot-logo")?.getAttribute("src")).toBe(
-        brand === "dinfectome"
-          ? "/dinfectome-logo.webp"
-          : "/geneseeq-icon-192.png",
+        brand === "dinfectome" ? "/dinfectome-logo.webp" : "/geneseeq-logo.png",
       );
     },
   );
@@ -72,6 +73,7 @@ describe("index.html boot theme", () => {
   beforeEach(() => {
     localStorage.removeItem(THEME_STORAGE_KEY);
     document.documentElement.removeAttribute("data-theme");
+    window.history.replaceState(null, "", "/");
     stubMatchMedia(true);
   });
 
@@ -79,6 +81,7 @@ describe("index.html boot theme", () => {
     window.matchMedia = originalMatchMedia;
     localStorage.removeItem(THEME_STORAGE_KEY);
     document.documentElement.removeAttribute("data-theme");
+    window.history.replaceState(null, "", "/");
   });
 
   it("styles the splash from data-theme, not OS color scheme", () => {
@@ -88,16 +91,18 @@ describe("index.html boot theme", () => {
     );
   });
 
-  it("uses the official corporate icon on white backing in both themes", () => {
-    expect(INDEX_HTML).toContain('src="/geneseeq-icon-192.png"');
-    expect(INDEX_HTML).not.toContain('src="/logo_vertical_white.svg"');
-    expect(INDEX_HTML).toMatch(/\.octop-boot-logo\s*\{[^}]*background:\s*#fff/);
-  });
-
-  it("can replace the boot logo after the public branding probe", () => {
+  it("keeps the branded boot logo inside the desktop chrome shell", () => {
+    expect(INDEX_HTML).toContain('id="octop-chrome"');
+    expect(INDEX_HTML).toContain('id="octop-stage"');
+    expect(INDEX_HTML).toContain('src="/geneseeq-logo.png"');
     expect(INDEX_HTML).toContain('id="octop-boot-logo"');
     expect(INDEX_HTML).toContain('fetch("/api/settings/branding"');
     expect(INDEX_HTML).toContain('logo.src = "/dinfectome-logo.webp"');
+  });
+
+  it("shows the shared arc beside the status line", () => {
+    expect(INDEX_HTML).toContain('class="octop-boot-spinner"');
+    expect(INDEX_HTML).toContain("@keyframes octop-boot-spin");
   });
 
   it("keeps a stored light preference over OS dark", () => {
@@ -133,5 +138,39 @@ describe("index.html boot theme", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "light");
     eval(bootThemeScript());
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+  });
+
+  it("adopts the desktop shell preference over the stored one", () => {
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({
+        preference: "dark",
+        palette: "tech",
+        customColor: "#112233",
+      }),
+    );
+    window.history.replaceState(null, "", "/?octopTheme=light");
+    eval(bootThemeScript());
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!)).toEqual({
+      preference: "light",
+      palette: "tech",
+      customColor: "#112233",
+    });
+    expect(window.location.search).not.toContain("octopTheme");
+  });
+
+  it("resolves a desktop system preference against the OS", () => {
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ preference: "light", palette: "rose" }),
+    );
+    window.history.replaceState(null, "", "/?octopTheme=system");
+    eval(bootThemeScript());
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!)).toMatchObject({
+      preference: "system",
+      palette: "rose",
+    });
   });
 });

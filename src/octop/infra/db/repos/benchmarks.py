@@ -167,7 +167,13 @@ class BenchmarkRepo:
         )
 
     def accept_candidate(
-        self, agent_id: str, user_id: int, candidate_id: str, case_data: dict[str, Any]
+        self,
+        agent_id: str,
+        user_id: int,
+        candidate_id: str,
+        case_data: dict[str, Any],
+        *,
+        reviewed_feedback: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._db.transaction() as conn:
             # Lock the candidate before inspecting status so concurrent reviewers create one case.
@@ -179,7 +185,7 @@ class BenchmarkRepo:
                 "SELECT * FROM benchmark_candidates WHERE agent_id=? AND user_id=? AND candidate_id=?",
                 (agent_id, user_id, candidate_id),
             ).fetchone()
-            if row is None or row["status"] == "ignored":
+            if row is None or (row["status"] == "ignored" and reviewed_feedback is None):
                 raise ValueError("Benchmark candidate not pending")
             if row["status"] == "accepted":
                 case = conn.execute(
@@ -193,12 +199,19 @@ class BenchmarkRepo:
                 **case_data,
                 "source": "feedback",
                 "source_feedback_id": row["feedback_id"],
-                "source_snapshot": json.loads(row["snapshot"]),
+                "source_snapshot": reviewed_feedback
+                if reviewed_feedback is not None
+                else json.loads(row["snapshot"]),
             }
             case = self._new_case(conn, agent_id, case_data)
             conn.execute(
-                "UPDATE benchmark_candidates SET status='accepted',case_id=?,updated_at=? WHERE candidate_id=?",
-                (case["case_id"], now_ts(), candidate_id),
+                "UPDATE benchmark_candidates SET status='accepted',case_id=?,snapshot=?,updated_at=? WHERE candidate_id=?",
+                (
+                    case["case_id"],
+                    json.dumps(case_data["source_snapshot"], ensure_ascii=False),
+                    now_ts(),
+                    candidate_id,
+                ),
             )
             return case
 

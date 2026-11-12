@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { octopSettingsApi } from "../api/modules/settings";
+import { publicUrl } from "../utils/publicUrl";
 
 export type ServerBrand = "default" | "dinfectome";
 
@@ -47,8 +48,8 @@ export function useBrandFavicon(): void {
     if (!favicon) return;
     const dinfectome = brand === "dinfectome";
     favicon.type = dinfectome ? "image/svg+xml" : "image/x-icon";
-    favicon.href = dinfectome
-      ? "/dinfectome-favicon.svg"
-      : "/geneseeq-favicon.ico";
+    favicon.href = publicUrl(
+      dinfectome ? "/dinfectome-favicon.svg" : "/geneseeq-favicon.ico",
+    );
   }, [brand]);
 }

@@ -151,7 +151,15 @@ async def test_ownership_includes_admin_and_shared_agents():
     agents = Mock()
     agents.get.return_value = SimpleNamespace(user_id=1, is_shared=True)
     service = FeedbackService(
-        SimpleNamespace(services=SimpleNamespace(thread_repo=repo, agent_repo=agents))
+        SimpleNamespace(
+            services=SimpleNamespace(
+                thread_repo=repo,
+                agent_repo=agents,
+                user_group_repo=Mock(),
+                user_group_member_repo=Mock(),
+                resource_group_grant_repo=SimpleNamespace(group_ids=lambda *_: set()),
+            )
+        )
     )
     for role in ("admin", "user"):
         with pytest.raises(OctopError):

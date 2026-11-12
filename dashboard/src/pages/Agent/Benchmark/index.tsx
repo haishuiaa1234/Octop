@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Alert, Button, Empty, Space, Tabs, Tooltip } from "antd";
 import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,22 +22,43 @@ export default function Benchmark({
   agentId,
   blocked = false,
   visible = true,
+  feedbackPanel,
+  initialTab = "cases",
+  onTabChange,
 }: {
   agentId: string | null;
   blocked?: boolean;
   visible?: boolean;
+  feedbackPanel?: ReactNode;
+  initialTab?: string;
+  onTabChange?: (tab: string) => void;
 }) {
   const { t } = useTranslation();
-  if (!agentId || blocked)
+  if ((!agentId && !feedbackPanel) || blocked)
     return <Empty description={t("benchmark.unavailable")} />;
-  return <Workbench key={agentId} agentId={agentId} visible={visible} />;
+  return (
+    <Workbench
+      key={agentId}
+      agentId={agentId || ""}
+      visible={visible}
+      feedbackPanel={feedbackPanel}
+      initialTab={initialTab}
+      onTabChange={onTabChange}
+    />
+  );
 }
 function Workbench({
   agentId,
   visible,
+  feedbackPanel,
+  initialTab,
+  onTabChange,
 }: {
   agentId: string;
   visible: boolean;
+  feedbackPanel?: ReactNode;
+  initialTab: string;
+  onTabChange?: (tab: string) => void;
 }) {
   const { t } = useTranslation();
   const alive = useRef(true);
@@ -56,7 +78,9 @@ function Workbench({
   }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("cases");
+  const [tab, setTab] = useState(initialTab);
+  const hasFeedbackPanel = Boolean(feedbackPanel);
+  useEffect(() => setTab(initialTab), [initialTab]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -65,11 +89,13 @@ function Workbench({
   }, []);
   const refresh = useCallback(() => {
     const next = refreshQueue.current.then(async () => {
-      if (!alive.current) return;
+      if (!alive.current || !agentId) return;
       try {
         const [c, f, r] = await Promise.all([
           benchmarkApi.cases(agentId),
-          benchmarkApi.candidates(agentId),
+          hasFeedbackPanel
+            ? Promise.resolve([])
+            : benchmarkApi.candidates(agentId),
           benchmarkApi.runs(agentId),
         ]);
         if (!alive.current) return;
@@ -92,7 +118,7 @@ function Workbench({
     });
     refreshQueue.current = next;
     return next;
-  }, [agentId]);
+  }, [agentId, hasFeedbackPanel]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -162,21 +188,27 @@ function Workbench({
           onClose={() => setError("")}
         />
       )}
-      <Tooltip title={t("benchmark.refresh")}>
-        <Button
-          aria-label={t("benchmark.refresh")}
-          icon={<RefreshCw size={16} />}
-          disabled={busy}
-          onClick={() => void refresh()}
-        />
-      </Tooltip>
+      {(!feedbackPanel || tab !== "candidates") && (
+        <Tooltip title={t("benchmark.refresh")}>
+          <Button
+            aria-label={t("benchmark.refresh")}
+            icon={<RefreshCw size={16} />}
+            disabled={busy}
+            onClick={() => void refresh()}
+          />
+        </Tooltip>
+      )}
       <Tabs
         activeKey={tab}
-        onChange={setTab}
+        onChange={(value) => {
+          setTab(value);
+          onTabChange?.(value);
+        }}
         items={[
           {
             key: "cases",
             label: t("benchmark.cases"),
+            disabled: !agentId,
             children: (
               <CasesPanel
                 cases={cases}
@@ -197,7 +229,10 @@ function Workbench({
                       name,
                       case_ids: ids,
                     });
-                    if (alive.current) setTab("runs");
+                    if (alive.current) {
+                      setTab("runs");
+                      onTabChange?.("runs");
+                    }
                   })
                 }
                 onExport={exportCases}
@@ -206,8 +241,8 @@ function Workbench({
           },
           {
             key: "candidates",
-            label: t("benchmark.candidates"),
-            children: (
+            label: t("benchmark.feedback"),
+            children: feedbackPanel || (
               <CandidatesPanel
                 items={candidates}
                 busy={busy}
@@ -223,6 +258,7 @@ function Workbench({
           {
             key: "runs",
             label: t("benchmark.runs"),
+            disabled: !agentId,
             children: (
               <RunsPanel
                 runs={runs}
@@ -259,6 +295,7 @@ function Workbench({
           {
             key: "comparison",
             label: t("benchmark.comparison"),
+            disabled: !agentId,
             children: (
               <ComparisonPanel
                 runs={runs}
@@ -277,7 +314,9 @@ function Workbench({
               />
             ),
           },
-        ]}
+        ].sort((a, b) =>
+          a.key === "candidates" ? -1 : b.key === "candidates" ? 1 : 0,
+        )}
       />
       {editor && (
         <CaseEditor

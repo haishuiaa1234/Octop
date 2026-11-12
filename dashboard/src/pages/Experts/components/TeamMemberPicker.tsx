@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "antd";
 import { Check } from "lucide-react";
-import { isOwnedExpert } from "../../../utils/sharedExpert";
+import cx from "classnames";
 import { isBridgeAgentId } from "../../../utils/remoteExpert";
 import { ExpertIcon } from "./iconForName";
 import styles from "../index.module.less";
@@ -29,7 +29,7 @@ interface TeamMemberPickerProps {
 export function isPickableExpert(item: TeamMemberOption): boolean {
   if (item.kind === "team") return false;
   if (item.bridge || isBridgeAgentId(item.agent_id)) return false;
-  return isOwnedExpert(item) || Boolean(item.is_shared);
+  return true;
 }
 
 /** Keep only currently pickable ids — save applies this full set, not incremental adds. */
@@ -128,9 +128,10 @@ export default function TeamMemberPicker({
               <button
                 key={expert.agent_id}
                 type="button"
-                className={`${styles.memberPickCard}${
-                  active ? ` ${styles.memberPickCardSelected}` : ""
-                }`}
+                className={cx(
+                  styles.memberPickCard,
+                  active && styles.memberPickCardSelected,
+                )}
                 onClick={() => toggle(expert.agent_id)}
                 aria-pressed={active}
               >

@@ -76,4 +76,43 @@ describe("admin feedback", () => {
       ),
     );
   });
+  it("keeps the expert filter on reset when embedded and reviews only on an explicit click", async () => {
+    const row = {
+      feedback_id: "f",
+      agent_id: "expert-1",
+      agent_name: "Expert",
+      user_id: 2,
+      question: "Question",
+      rating: "unhelpful",
+      reason: "factual_error",
+    };
+    vi.mocked(feedbackApi.adminList).mockResolvedValue({
+      items: [row],
+      total: 1,
+      helpful: 0,
+      unhelpful: 1,
+    } as never);
+    const onReview = vi.fn();
+    render(<FeedbackPage embedded agentId="expert-1" onReview={onReview} />);
+    await waitFor(() =>
+      expect(feedbackApi.adminList).toHaveBeenCalledWith(
+        { agent_id: "expert-1" },
+        0,
+        20,
+      ),
+    );
+    expect(onReview).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "benchmark.reviewDraft" }),
+    );
+    expect(onReview).toHaveBeenCalledWith(row);
+    fireEvent.click(screen.getByRole("button", { name: "feedback.reset" }));
+    await waitFor(() =>
+      expect(feedbackApi.adminList).toHaveBeenLastCalledWith(
+        { agent_id: "expert-1" },
+        0,
+        20,
+      ),
+    );
+  });
 });

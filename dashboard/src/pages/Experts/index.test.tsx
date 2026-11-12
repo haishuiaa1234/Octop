@@ -1,10 +1,11 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderTestingLibrary,
   screen,
   waitFor,
 } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OctopAgent } from "../../context/AgentContext";
 
@@ -61,6 +62,9 @@ vi.mock("./components/AgentExpertsTable", () => ({
 }));
 
 import ExpertsPage from "./index";
+
+const render = (ui: React.ReactNode) =>
+  renderTestingLibrary(ui, { wrapper: MemoryRouter });
 
 const sharedTeam = {
   agent_id: "shared-team",
@@ -127,6 +131,14 @@ describe("ExpertsPage shared experts and teams", () => {
     expect(screen.getByTestId("expert-table")).toHaveTextContent(
       sharedExpert.name,
     );
+  });
+
+  it("shows targeted-only solo experts returned by the authorized list", async () => {
+    state.agents = [{ ...sharedExpert, is_shared: false, is_owner: false }];
+    await act(async () => {
+      render(<ExpertsPage />);
+    });
+    expect(screen.getByText(sharedExpert.name)).toBeInTheDocument();
   });
 
   it("keeps shared solo experts when the list is refreshed", async () => {

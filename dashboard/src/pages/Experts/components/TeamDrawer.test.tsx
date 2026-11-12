@@ -17,14 +17,24 @@ const { get, create, update, templateFiles, t } = vi.hoisted(() => ({
   t: (key: string) => key,
 }));
 
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t }) }));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t, i18n: { language: "en" } }),
+}));
 vi.mock("../../../api/modules/teams", () => ({
   teamsApi: { get, create, update, templateFiles },
+}));
+vi.mock("../../../api/modules/userGroups", () => ({
+  userGroupsApi: {
+    audience: async () => ({ user_count: 3, group_count: 1 }),
+    list: async () => [{ user_group_id: "lab", name: "Lab", enabled: true }],
+  },
 }));
 vi.mock("../../../hooks/useAgentFormResources", () => ({
   useAgentFormResources: () => ({
     models: [{ provider_name: "test", model: "model" }],
     modelsLoading: false,
+    backends: [],
+    backendsLoading: false,
   }),
 }));
 vi.mock("@/utils/antdMessage", () => ({
@@ -48,17 +58,23 @@ const record: TeamRecord = {
   member_ids: ["a", "b"],
   members: experts,
   is_shared: true,
+  shared_user_ids: [],
+  shared_role_ids: [],
   is_owner: true,
   owner_username: "owner",
 };
 
-function drawer(mode: "create" | "edit", team?: OctopAgent) {
+function drawer(
+  mode: "create" | "edit",
+  team?: OctopAgent,
+  members: OctopAgent[] = experts,
+) {
   return (
     <TeamDrawer
       open
       mode={mode}
       team={team}
-      experts={experts}
+      experts={members}
       onClose={vi.fn()}
       onSaved={vi.fn()}
     />
@@ -81,8 +97,8 @@ describe("TeamDrawer sharing", () => {
 
   it("creates a private team by default and sends its sharing setting", async () => {
     render(drawer("create"));
-    const sharing = screen.getByRole("switch", {
-      name: "experts.share.toggle",
+    const sharing = await screen.findByRole("radio", {
+      name: "resourceVisibility.all",
     });
     expect(sharing).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("experts.agentName"), {
@@ -106,7 +122,7 @@ describe("TeamDrawer sharing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Alpha/ }));
     fireEvent.click(screen.getByRole("button", { name: /Beta/ }));
     fireEvent.click(
-      screen.getByRole("switch", { name: "experts.share.toggle" }),
+      await screen.findByRole("radio", { name: "resourceVisibility.all" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "common.create" }));
     await waitFor(() =>
@@ -124,16 +140,40 @@ describe("TeamDrawer sharing", () => {
         is_shared: false,
       } as unknown as OctopAgent),
     );
-    const sharing = screen.getByRole("switch", {
-      name: "experts.share.toggle",
+    const sharing = screen.getByRole("radio", {
+      name: "resourceVisibility.all",
     });
     await waitFor(() => expect(sharing).toBeChecked());
-    fireEvent.click(sharing);
+    fireEvent.click(
+      screen.getByRole("radio", { name: "resourceVisibility.owner" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() =>
       expect(update).toHaveBeenCalledWith(
         "crew",
         expect.objectContaining({ is_shared: false }),
+      ),
+    );
+  });
+
+  it("retains a targeted-only member when saving an existing team", async () => {
+    const members = [
+      { ...experts[0]!, is_owner: false, is_shared: false },
+      experts[1]!,
+    ];
+    get.mockResolvedValue({ ...record, members });
+    render(drawer("edit", record as unknown as OctopAgent, members));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Alpha/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        "crew",
+        expect.objectContaining({ member_ids: ["a", "b"] }),
       ),
     );
   });
@@ -144,7 +184,7 @@ describe("TeamDrawer sharing", () => {
       render(drawer("edit", record as unknown as OctopAgent));
     });
     expect(
-      screen.getByRole("switch", { name: "experts.share.toggle" }),
+      screen.getByRole("radio", { name: "resourceVisibility.all" }),
     ).toBeChecked();
   });
 
@@ -154,12 +194,12 @@ describe("TeamDrawer sharing", () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByRole("switch", { name: "experts.share.toggle" }),
+        screen.getByRole("radio", { name: "resourceVisibility.all" }),
       ).toBeChecked(),
     );
     rerender(drawer("create"));
     expect(
-      screen.getByRole("switch", { name: "experts.share.toggle" }),
+      screen.getByRole("radio", { name: "resourceVisibility.all" }),
     ).not.toBeChecked();
   });
 });

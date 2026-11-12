@@ -1,4 +1,4 @@
-import { Form, Input, Modal, Select } from "antd";
+import { Alert, Form, Input, Modal, Select } from "antd";
 import { useTranslation } from "react-i18next";
 import type { CaseInput } from "../../../api/modules/benchmarks";
 
@@ -19,11 +19,15 @@ export default function CaseEditor({
   onSave,
   onCancel,
   busy,
+  error,
+  readyOnly = false,
 }: {
   initial: CaseInput;
   onSave: (value: CaseInput) => void;
   onCancel: () => void;
   busy: boolean;
+  error?: string;
+  readyOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const [form] = Form.useForm<CaseInput>();
@@ -37,6 +41,9 @@ export default function CaseEditor({
       confirmLoading={busy}
       width={720}
     >
+      {error && (
+        <Alert type="error" message={error} style={{ marginBottom: 16 }} />
+      )}
       <Form
         form={form}
         initialValues={initial}
@@ -74,10 +81,15 @@ export default function CaseEditor({
         ).map(([name, values]) => (
           <Form.Item key={name} name={name} label={t(`benchmark.${name}`)}>
             <Select
-              options={values.map((value) => ({
-                value,
-                label: t(`benchmark.${value}`),
-              }))}
+              options={values
+                .filter(
+                  (value) =>
+                    name !== "status" || !readyOnly || value === "ready",
+                )
+                .map((value) => ({
+                  value,
+                  label: t(`benchmark.${value}`),
+                }))}
             />
           </Form.Item>
         ))}

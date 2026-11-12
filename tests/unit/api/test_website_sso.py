@@ -12,6 +12,7 @@ import pytest
 from tests.unit.api.test_websites import websites as _websites
 
 from octop.api.deps import current_user, is_jwt_exempt_path
+from octop.infra.crypto.fernet import PURPOSE_SSO, open_secret_bytes
 from octop.infra.db.pool import SqlitePool
 from octop.infra.db.repos.websites import WebsiteRepo
 
@@ -117,6 +118,8 @@ async def test_sso_roundtrip_only_exposes_identity_and_code_is_single_use(websit
     client, app, identities, services = websites
     site, secret = await provision(websites)
     body = {**await issue(websites, site), "client_secret": secret}
+    stored = services.secret_repo.get("custom.website-sso.secret.v1." + site["website_id"])
+    assert stored is not None and stored != hashlib.sha256(secret.encode()).digest()
     for user, path in [(identities[1], "/api/websites"), (identities[0], "/api/admin/websites")]:
         app.dependency_overrides[current_user] = partial(lambda identity: identity, user)
         response = await client.get(path)
@@ -125,7 +128,10 @@ async def test_sso_roundtrip_only_exposes_identity_and_code_is_single_use(websit
         assert "client_secret" not in response.text
     assert secret not in "".join(services.website_repo.list_values())
     stored = services.secret_repo.get(f"custom.website-sso.secret.v1.{site['website_id']}")
-    assert stored == hashlib.sha256(secret.encode()).digest()
+    assert (
+        open_secret_bytes(services.secret_repo, PURPOSE_SSO, stored)
+        == hashlib.sha256(secret.encode()).digest()
+    )
     assert body["code"] not in "".join(stored_settings(services).values())
     response = await client.post("/api/app-sso/exchange", json=body)
     assert response.status_code == 200, response.text
@@ -133,6 +139,18 @@ async def test_sso_roundtrip_only_exposes_identity_and_code_is_single_use(websit
         "user": {"id": identities[1].id, "username": "alice", "display_name": None, "locale": "zh"}
     }
     assert (await client.post("/api/app-sso/exchange", json=body)).status_code == 401
+
+
+async def test_sso_accepts_premerge_secret_hashes(websites):
+    client, _, _, services = websites
+    site, secret = await provision(websites)
+    services.secret_repo.put(
+        "custom.website-sso.secret.v1." + site["website_id"],
+        hashlib.sha256(secret.encode()).digest(),
+    )
+    body = {**await issue(websites, site), "client_secret": secret}
+    response = await client.post("/api/app-sso/exchange", json=body)
+    assert response.status_code == 200, response.text
 
 
 async def test_sensitive_responses_are_not_cached(websites):

@@ -6,7 +6,9 @@ import {
   type AgentShareOptions,
 } from "../../../api/modules/agentSharing";
 
-export default function ShareTargetsField() {
+export default function ShareTargetsField({
+  showVisibilityToggle = true,
+}: { showVisibilityToggle?: boolean } = {}) {
   const { t } = useTranslation();
   const [options, setOptions] = useState<AgentShareOptions>({
     users: [],
@@ -30,14 +32,16 @@ export default function ShareTargetsField() {
 
   return (
     <>
-      <Form.Item
-        name="is_shared"
-        label={t("experts.share.toggle")}
-        extra={t("experts.share.allUsers")}
-        valuePropName="checked"
-      >
-        <Switch />
-      </Form.Item>
+      {showVisibilityToggle && (
+        <Form.Item
+          name="is_shared"
+          label={t("experts.share.toggle")}
+          extra={t("experts.share.allUsers")}
+          valuePropName="checked"
+        >
+          <Switch />
+        </Form.Item>
+      )}
       <Form.Item name="shared_user_ids" label={t("experts.share.users")}>
         <Select
           mode="multiple"

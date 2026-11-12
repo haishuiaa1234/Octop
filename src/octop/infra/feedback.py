@@ -9,9 +9,8 @@ from functools import partial
 from typing import Any
 
 from octop.infra.errors import ErrorCode, OctopError
-from octop.infra.gateway.process.message_keys import STREAM_ERROR_FLAG, parse_checkpoint_ts_ms
+from octop.infra.gateway.process.message_keys import STREAM_ERROR_FLAG
 from octop.infra.history.answer_text import join_answer_parts, visible_text
-from octop.infra.history.reader import export_messages
 from octop.infra.users.identity import User
 
 
@@ -64,6 +63,8 @@ def answer_snapshot(messages: list[Any], message_id: str) -> tuple[str, str]:
             group_key = None
         elif role in ("ai", "assistant", "tool"):
             key = (str(kwargs.get("speaker_agent_id") or ""), bool(kwargs.get("team_wrapup")))
+            if role == "tool" and not key[0] and group_key is not None:
+                key = group_key
             if group_key is not None and key != group_key:
                 group = []
             group_key = key
@@ -105,51 +106,6 @@ def answer_snapshot(messages: list[Any], message_id: str) -> tuple[str, str]:
     raise ValueError("Answer not found")
 
 
-def _projection_snapshot_messages(
-    archived: list[Any], rows: list[Any], message_id: str
-) -> list[Any]:
-    projected = [(json.loads(row.message_json), row.created_at * 1000) for row in rows]
-
-    def timestamp(wire: dict[str, Any], fallback: int = 0) -> int:
-        data = wire.get("data", wire)
-        return (
-            parse_checkpoint_ts_ms((data.get("additional_kwargs") or {}).get("checkpoint_ts"))
-            or fallback
-        )
-
-    target_time = next(
-        (
-            timestamp(wire, created)
-            for wire, created in projected
-            if wire.get("data", wire).get("id") == message_id
-        ),
-        None,
-    )
-    if target_time is None:
-        return []
-    # Timestamp boundaries link projection-only team replies to their archived
-    # question, without accidentally borrowing a newer user turn.
-    questions = [
-        (timestamp(wire, fallback), wire)
-        for wire, fallback in [
-            *((wire, 0) for wire in archived if isinstance(wire, dict)),
-            *projected,
-        ]
-        if (wire.get("type") or wire.get("role")) in ("human", "user")
-        and 0 < timestamp(wire, fallback) <= target_time
-    ]
-    if not questions:
-        return [wire for wire, _ in projected]
-    question_time, question = max(questions, key=lambda item: item[0])
-    tail = [
-        wire
-        for wire, created in projected
-        if question_time <= timestamp(wire, created) <= target_time
-        and (wire.get("type") or wire.get("role")) not in ("human", "user")
-    ]
-    return [question, *tail]
-
-
 class FeedbackService:
     def __init__(self, server: Any) -> None:
         self.server = server
@@ -164,7 +120,10 @@ class FeedbackService:
         agent = await _execute(self.services.agent_repo.get, agent_id)
         if agent is None:
             raise OctopError(ErrorCode.NOT_FOUND, "Agent not found")
-        if not user.is_admin and agent.user_id != user.id and not agent.is_shared:
+        from octop.infra.users.groups import expert_visible_to  # noqa: PLC0415
+
+        repos = getattr(self.services, "repos", self.services)
+        if not expert_visible_to(repos, agent, user_id=user.id, is_admin=user.is_admin):
             raise OctopError(ErrorCode.FORBIDDEN, "Agent not accessible to user")
         return thread
 
@@ -189,25 +148,8 @@ class FeedbackService:
         hub = getattr(gateway, "ws_hub", None)
         if hub is not None and hub.is_turn_active(thread_id):
             raise OctopError(ErrorCode.AGENT_BUSY, "Wait until the answer is complete")
-        archive = getattr(runtime, "history_archive", None)
-        if archive is not None:
-            unfinished = await _execute(lambda: archive.store.turn(thread_id, unfinished=True))
-            if unfinished is not None:
-                raise OctopError(ErrorCode.AGENT_BUSY, "Wait until the answer is complete")
-            messages = await export_messages(archive, runtime.agent_registry, agent_id, thread_id)
-            if not any(
-                isinstance(wire, dict) and wire.get("data", wire).get("id") == data["message_id"]
-                for wire in messages
-            ):
-                rows = await _execute(
-                    self.services.thread_message_repo.range_rows, thread_id, 0, 2**63 - 1
-                )
-                messages = _projection_snapshot_messages(messages, rows, data["message_id"])
-        else:
-            rows = await _execute(
-                self.services.thread_message_repo.range_rows, thread_id, 0, 2**63 - 1
-            )
-            messages = [json.loads(row.message_json) for row in rows]
+        rows = await _execute(self.services.thread_message_repo.range_rows, thread_id, 0, 2**63 - 1)
+        messages = [json.loads(row.message_json) for row in rows]
         try:
             question, answer = answer_snapshot(messages, data["message_id"])
         except ValueError as exc:

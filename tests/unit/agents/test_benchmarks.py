@@ -152,7 +152,7 @@ async def test_actual_evaluator_is_tool_free_and_preserves_detailed_usage(enviro
 
     from octop.infra.benchmarks.runner import prepare_evaluator
 
-    server, _, _ = environment
+    server, user, _ = environment
     response = AIMessage(
         content="Answer",
         usage_metadata={
@@ -166,21 +166,23 @@ async def test_actual_evaluator_is_tool_free_and_preserves_detailed_usage(enviro
     model = SimpleNamespace(ainvoke=AsyncMock(return_value=response))
     workspace = SimpleNamespace(aread_text=AsyncMock(side_effect=["Persona", "Rules"]))
     factory = SimpleNamespace(
-        resolve_ref=lambda ref: "provider/model",
         get_chat_model=lambda ref: model,
     )
     agent = SimpleNamespace(
-        config=SimpleNamespace(system_prompt="Instructions"),
+        config=SimpleNamespace(
+            system_prompt="Instructions", pick_default_model_ref=lambda: "provider/model"
+        ),
         model_factory=factory,
         workspace=workspace,
     )
     server.app_runtime = SimpleNamespace(
         agent_registry=SimpleNamespace(get_agent=lambda agent_id: agent)
     )
-    snapshot, evaluate = await prepare_evaluator(server, "expert")
+    snapshot, evaluate = await prepare_evaluator(server, "expert", user.id)
     output = await evaluate("Question", "Context")
 
     assert snapshot["tools_enabled"] is False
+    assert snapshot["model_ref"] == "provider/model"
     assert snapshot["memory_enabled"] is False
     assert [call.args[0] for call in workspace.aread_text.call_args_list] == [
         "SOUL.md",
@@ -324,3 +326,93 @@ async def test_shutdown_terminalizes_a_task_cancelled_before_its_first_step(
     stored = await service.get_run(user, "expert", run["run_id"])
     assert stored["status"] == "interrupted"
     assert all(result["status"] not in {"pending", "running"} for result in stored["results"])
+
+
+@pytest.mark.asyncio
+async def test_run_rejects_model_hidden_from_owner_before_loading_it(environment):
+    from unittest.mock import Mock
+
+    from octop.infra.benchmarks.runner import BenchmarkRunner
+    from octop.infra.errors import ErrorCode, OctopError
+    from octop.infra.users.groups import RESOURCE_MODEL, GroupAccess
+
+    server, user, _ = environment
+    group = server.services.user_group_repo.create(name="restricted", description=None)
+    GroupAccess(server.services).set_visibility(
+        RESOURCE_MODEL, "provider/model", "groups", [group.user_group_id]
+    )
+    factory = Mock()
+    agent = SimpleNamespace(
+        config=SimpleNamespace(pick_default_model_ref=lambda: "provider/model", system_prompt=""),
+        model_factory=factory,
+        workspace=SimpleNamespace(aread_text=AsyncMock(return_value="")),
+    )
+    server.app_runtime = SimpleNamespace(
+        agent_registry=SimpleNamespace(get_agent=lambda agent_id: agent)
+    )
+    runner = BenchmarkRunner(server)
+    try:
+        with pytest.raises(OctopError) as error:
+            await runner.start(
+                "expert",
+                user.id,
+                "restricted",
+                [{"case_id": "case", "revision": 1, "split": "dev"}],
+            )
+        assert error.value.code == ErrorCode.RESOURCE_NOT_ALLOWED
+        factory.get_chat_model.assert_not_called()
+        assert server.services.benchmark_repo.list_runs("expert") == []
+    finally:
+        await runner.close()
+
+
+@pytest.mark.asyncio
+async def test_run_rechecks_model_visibility_between_cases(monkeypatch, environment):
+    from octop.infra.benchmarks.runner import BenchmarkRunner
+    from octop.infra.benchmarks.service import BenchmarkService
+    from octop.infra.users.groups import RESOURCE_MODEL, GroupAccess
+
+    server, user, _ = environment
+    group = server.services.user_group_repo.create(name="restricted", description=None)
+
+    async def revoke_after_answer(question, context):
+        GroupAccess(server.services).set_visibility(
+            RESOURCE_MODEL, "provider/model", "groups", [group.user_group_id]
+        )
+        return {"answer": "A"}
+
+    evaluator = AsyncMock(side_effect=revoke_after_answer)
+    monkeypatch.setattr(
+        "octop.infra.benchmarks.runner.prepare_evaluator",
+        AsyncMock(return_value=({"model_ref": "provider/model"}, evaluator)),
+    )
+    runner = BenchmarkRunner(server)
+    server.benchmark_runner = runner
+    service = BenchmarkService(server)
+    cases = [
+        await service.save_case(
+            user,
+            "expert",
+            {"title": title, "question": "Q", "reference_answer": "A", "status": "ready"},
+        )
+        for title in ("First", "Second")
+    ]
+    try:
+        run = await service.start_run(user, "expert", [case["case_id"] for case in cases])
+        await runner.wait(run["run_id"])
+        stored = await service.get_run(user, "expert", run["run_id"])
+        assert [result["status"] for result in stored["results"]] == ["passed", "error"]
+        assert evaluator.await_count == 1
+    finally:
+        await runner.close()
+
+
+def test_model_access_accepts_the_server_shared_services_container(environment):
+    from octop.infra.benchmarks.runner import _assert_model_access
+    from octop.infra.db.services import SharedServices
+
+    server, user, _ = environment
+    services = SharedServices(
+        paths=SimpleNamespace(), config=SimpleNamespace(), repos=server.services
+    )
+    _assert_model_access(services, user.id, "provider/model")

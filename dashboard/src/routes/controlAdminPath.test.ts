@@ -9,6 +9,29 @@ import {
 import { isWorkbenchPath, resolveSelectedKey, routeConfigs } from "./index";
 
 describe("pathPermissionKeys", () => {
+  it("routes the old feedback entry to the permission-guarded evaluation center", () => {
+    expect(
+      routeConfigs.find((route) => route.path === "/admin/feedback")?.element,
+    ).toMatchObject({
+      props: { to: "/benchmarks?tab=candidates", replace: true },
+    });
+    expect(routeConfigs.some((route) => route.path === "/benchmarks")).toBe(
+      true,
+    );
+    expect(resolveSelectedKey("/benchmarks")).toBe("admin-feedback");
+    expect(
+      canAccessPath({ role: "user", permissions: [] }, "/benchmarks"),
+    ).toBe(false);
+    expect(
+      canAccessPath({ role: "user", permissions: ["experts"] }, "/benchmarks"),
+    ).toBe(true);
+    expect(
+      canAccessPath(
+        { role: "user", permissions: ["experts"] },
+        "/admin/feedback",
+      ),
+    ).toBe(false);
+  });
   it("matches workbench and legacy aliases", () => {
     expect(isWorkbenchPath("/workbench")).toBe(true);
     expect(pathPermissionKeys("/workbench")).toEqual([...PERM.workbench]);
@@ -45,7 +68,8 @@ describe("pathPermissionKeys", () => {
     expect(NAV_PERMISSIONS["admin-advanced"]).toEqual(PERM.advancedPage);
     expect(ADVANCED_TAB_PERMISSIONS.captcha).toBe("captcha");
     expect("bridge" in ADVANCED_TAB_PERMISSIONS).toBe(false);
-    expect(pathPermissionKeys("/bridge")).toBeNull();
+    expect(pathPermissionKeys("/bridge")).toEqual([...PERM.bridge]);
+    expect(NAV_PERMISSIONS.bridge).toEqual(PERM.bridge);
     expect([...PERM.advancedPage]).toContain("captcha");
   });
 
@@ -61,8 +85,12 @@ describe("pathPermissionKeys", () => {
 
   it("does not gate common pages", () => {
     expect(pathPermissionKeys("/chat")).toBeNull();
-    expect(pathPermissionKeys("/personalization/skills")).toBeNull();
-    expect(pathPermissionKeys("/bridge")).toBeNull();
+    expect(pathPermissionKeys("/personalization/acp")).toBeNull();
+  });
+
+  it("gates cloud collab behind the bridge permission", () => {
+    expect(pathPermissionKeys("/bridge")).toEqual(["bridge"]);
+    expect(pathPermissionKeys("/bridge/settings")).toEqual(["bridge"]);
   });
 
   it("gates ungrouped pages except chat", () => {
@@ -80,9 +108,25 @@ describe("pathPermissionKeys", () => {
     expect(pathPermissionKeys("/skill-packages")).toEqual([
       ...PERM.skillPackages,
     ]);
+    expect(pathPermissionKeys("/personalization/skills")).toEqual([
+      "skills",
+      "skill_builtin",
+      "skill_market",
+    ]);
     expect(pathPermissionKeys("/personalization/channels")).toEqual([
       ...PERM.channels,
     ]);
+    expect(pathPermissionKeys("/personalization/tools")).toEqual([
+      ...PERM.tools,
+    ]);
+    expect(pathPermissionKeys("/personalization/plugins")).toEqual([
+      ...PERM.agentPlugins,
+    ]);
+    expect(pathPermissionKeys("/personalization/memory")).toEqual([
+      ...PERM.memory,
+    ]);
+    expect(pathPermissionKeys("/memory")).toEqual([...PERM.memory]);
+    expect(NAV_PERMISSIONS.personalization).toEqual(PERM.personalization);
     expect(pathPermissionKeys("/knowledge-bases")).toEqual([
       ...PERM.knowledgeBasesPage,
     ]);

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,6 +21,26 @@ async def test_provider_test_ok(env_with_provider_record: Any) -> None:
     body = r.json()
     assert body["ok"] is True
     assert isinstance(body["latency_ms"], int)
+    fake_model.ainvoke.assert_awaited_once_with("ping", max_tokens=1)
+
+
+async def test_provider_test_allows_local_model_cold_start(env_with_provider_record: Any) -> None:
+    c, _srv, auth, pid = env_with_provider_record
+    fake_model = MagicMock()
+    fake_model.ainvoke = AsyncMock(return_value=MagicMock(content="pong"))
+    with (
+        patch(
+            "octop.infra.agents.providers.probe.build_probe_chat_model",
+            return_value=fake_model,
+        ),
+        patch(
+            "octop.infra.agents.providers.probe.asyncio.wait_for",
+            wraps=asyncio.wait_for,
+        ) as wait_for,
+    ):
+        r = await c.post(f"/api/admin/providers/{pid}/test", headers=auth)
+    assert r.status_code == 200, r.text
+    assert wait_for.await_args.kwargs["timeout"] == 120.0
 
 
 async def test_provider_test_failure(env_with_provider_record: Any) -> None:
@@ -51,12 +72,16 @@ async def test_provider_test_embedding_skips_chat_probe(
         row: Any,
         *,
         model_id: str | None = None,
+        api_mode: str | None = None,
+        api_fallback: str | None = None,
         embedding: bool | None = None,
         locale: str = "en",
     ) -> dict[str, Any]:
         assert embedding is True
         assert model_id == "text-embedding-3-small"
-        _ = locale
+        assert api_mode is None
+        assert api_fallback is None
+        _ = row, locale
         return {"ok": True, "latency_ms": 12}
 
     with patch(

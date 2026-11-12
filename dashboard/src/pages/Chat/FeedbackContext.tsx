@@ -29,15 +29,17 @@ export const useFeedback = () => useContext(FeedbackContext);
 export function FeedbackProvider({
   agentId,
   threadId,
+  enabled = true,
   children,
   onRefresh,
 }: {
   agentId?: string | null;
   threadId?: string | null;
+  enabled?: boolean;
   children: ReactNode;
   onRefresh?: () => void;
 }) {
-  if (!agentId || !threadId) return <>{children}</>;
+  if (!enabled || !agentId || !threadId) return <>{children}</>;
   return (
     <ThreadFeedbackProvider
       key={`${agentId}:${threadId}`}

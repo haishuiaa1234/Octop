@@ -71,6 +71,36 @@ async def test_team_can_be_created_shared(team_env):
     assert (await client.get(f"/api/teams/{team_id}", headers=peer)).status_code == 200
 
 
+async def test_team_group_audience_and_directed_shares_remain_independent(team_env):
+    client, server, owner, peer, _members, team_id = team_env
+    group = server.services.repos.user_group_repo.create(name="restricted", description=None)
+    peer_id = server.services.user_repo.get_by_username("team_peer").id
+    url = f"/api/teams/{team_id}"
+    response = await client.patch(
+        url,
+        headers=owner,
+        json={
+            "visibility": "groups",
+            "group_ids": [group.user_group_id],
+            "shared_user_ids": [peer_id],
+            "shared_role_ids": [],
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["visibility"] == "groups"
+    assert response.json()["group_ids"] == [group.user_group_id]
+    assert (await client.get(url, headers=peer)).status_code == 200
+    # The explicit recipient is outside the allowed group, and still cannot mutate.
+    assert (await client.patch(url, headers=peer, json={"name": "changed"})).status_code == 403
+    response = await client.patch(url, headers=owner, json={"visibility": "owner", "group_ids": []})
+    assert response.status_code == 200, response.text
+    assert response.json()["is_shared"] is False
+    assert response.json()["shared_user_ids"] == [peer_id]
+    assert (await client.get(url, headers=peer)).status_code == 200
+    await client.patch(url, headers=owner, json={"shared_user_ids": []})
+    assert (await client.get(url, headers=peer)).status_code == 403
+
+
 async def test_team_sharing_supports_user_and_role_targets(team_env):
     client, server, owner, peer, members, team_id = team_env
     peer_id = server.services.user_repo.get_by_username("team_peer").id

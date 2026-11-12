@@ -24,6 +24,35 @@ const experts = [
 ];
 
 describe("TeamMemberPicker", () => {
+  it("keeps a targeted-only expert selectable and in the saved roster", () => {
+    const targeted = {
+      agent_id: "targeted",
+      name: "Targeted",
+      kind: "expert",
+      is_owner: false,
+      is_shared: false,
+    };
+    const allowed = [...experts, targeted];
+    const onChange = vi.fn();
+    render(
+      <TeamMemberPicker
+        value={["a", "targeted"]}
+        onChange={onChange}
+        experts={allowed}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Targeted/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Beta/ }));
+    expect(onChange).toHaveBeenCalledWith(["a", "targeted", "b"]);
+    expect(selectedRosterIds(["a", "targeted"], allowed)).toEqual([
+      "a",
+      "targeted",
+    ]);
+  });
+
   it("adds and removes members like create", () => {
     const onChange = vi.fn();
     const { rerender } = render(

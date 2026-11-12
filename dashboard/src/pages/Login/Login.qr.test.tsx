@@ -40,6 +40,7 @@ vi.mock("../../api/modules/auth", () => ({
     getLdapStatus: mocks.getLdapStatus,
     startOauth: mocks.startOauth,
     getCaptcha: () => Promise.resolve({ provider: "none" }),
+    getPasskeyLoginStatus: () => Promise.resolve({ passwordless_login: false }),
   },
 }));
 

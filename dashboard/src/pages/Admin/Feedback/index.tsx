@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Alert,
   Button,
@@ -13,7 +14,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, FileCheck, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import PageShell from "../../../layouts/PageShell";
 import {
@@ -35,11 +36,49 @@ interface FilterValues extends FeedbackFilters {
 }
 const emptyPage: Page = { items: [], total: 0, helpful: 0, unhelpful: 0 };
 
-export default function FeedbackPage() {
+function FeedbackLayout({
+  embedded,
+  actions,
+  children,
+}: {
+  embedded: boolean;
+  actions: ReactNode;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  if (embedded)
+    return (
+      <>
+        <div style={{ marginBottom: 16 }}>{actions}</div>
+        {children}
+      </>
+    );
+  return (
+    <PageShell
+      title={t("feedback.adminTitle")}
+      subtitle={t("feedback.adminSubtitle")}
+      actions={actions}
+    >
+      {children}
+    </PageShell>
+  );
+}
+
+export default function FeedbackPage({
+  embedded = false,
+  agentId,
+  onReview,
+}: {
+  embedded?: boolean;
+  agentId?: string;
+  onReview?: (feedback: Feedback) => void;
+}) {
   const { t } = useTranslation();
   const zone = useServerTimezone();
   const [form] = Form.useForm<FilterValues>();
-  const [filters, setFilters] = useState<FeedbackFilters>({});
+  const [filters, setFilters] = useState<FeedbackFilters>(
+    agentId ? { agent_id: agentId } : {},
+  );
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState<Page>(emptyPage);
@@ -106,9 +145,8 @@ export default function FeedbackPage() {
   };
 
   return (
-    <PageShell
-      title={t("feedback.adminTitle")}
-      subtitle={t("feedback.adminSubtitle")}
+    <FeedbackLayout
+      embedded={embedded}
       actions={
         <Space>
           <Button
@@ -131,6 +169,7 @@ export default function FeedbackPage() {
     >
       <Form
         form={form}
+        initialValues={{ agent_id: agentId }}
         layout="inline"
         onFinish={search}
         style={{ gap: 12, marginBottom: 20 }}
@@ -175,7 +214,7 @@ export default function FeedbackPage() {
           <Button
             onClick={() => {
               form.resetFields();
-              setFilters({});
+              setFilters(agentId ? { agent_id: agentId } : {});
               setPage(1);
             }}
           >
@@ -272,11 +311,22 @@ export default function FeedbackPage() {
           {
             title: t("feedback.details"),
             key: "details",
-            width: 90,
+            width: onReview ? 200 : 90,
             render: (_, row) => (
-              <Button type="link" onClick={() => setDetail(row)}>
-                {t("feedback.details")}
-              </Button>
+              <Space wrap>
+                <Button type="link" onClick={() => setDetail(row)}>
+                  {t("feedback.details")}
+                </Button>
+                {onReview && (
+                  <Button
+                    type="link"
+                    icon={<FileCheck size={15} />}
+                    onClick={() => onReview(row)}
+                  >
+                    {t("benchmark.reviewDraft")}
+                  </Button>
+                )}
+              </Space>
             ),
           },
         ]}
@@ -285,7 +335,7 @@ export default function FeedbackPage() {
         title={t("feedback.details")}
         open={detail !== null}
         onClose={() => setDetail(null)}
-        width={720}
+        width="min(720px, 100vw)"
       >
         {detail && (
           <>
@@ -360,6 +410,6 @@ export default function FeedbackPage() {
           </>
         )}
       </Drawer>
-    </PageShell>
+    </FeedbackLayout>
   );
 }

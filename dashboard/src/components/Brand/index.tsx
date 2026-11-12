@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useServerBrand } from "../../hooks/useServerBrand";
+import { publicUrl } from "../../utils/publicUrl";
 import styles from "./index.module.less";
 
 interface BrandProps {
@@ -20,7 +21,7 @@ export default function Brand({ variant = "navigation" }: BrandProps) {
   return (
     <div className={`${styles.brand} ${styles[variant]}`}>
       <img
-        src={logoSrc}
+        src={publicUrl(logoSrc)}
         alt={t(
           brand === "dinfectome" || compact ? "app.name" : "app.companyName",
         )}

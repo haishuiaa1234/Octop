@@ -137,6 +137,24 @@ class BenchmarkService:
         self.services = server.services
         self.repo = self.services.benchmark_repo
 
+    @staticmethod
+    def visible_case(user: Any, case: dict[str, Any]) -> dict[str, Any]:
+        snapshot = case.get("source_snapshot", {})
+        if snapshot and not user.is_admin and snapshot.get("user_id") != user.id:
+            return {**case, "source_snapshot": {}}
+        return case
+
+    def visible_run(self, user: Any, run: dict[str, Any]) -> dict[str, Any]:
+        return run_counts(
+            {
+                **run,
+                "results": [
+                    {**result, "case_snapshot": self.visible_case(user, result["case_snapshot"])}
+                    for result in run.get("results", [])
+                ],
+            }
+        )
+
     async def authorize(self, user: Any, agent_id: str) -> Any:
         row = await io(self.services.agent_repo.get, agent_id)
         if row is None:
@@ -147,7 +165,7 @@ class BenchmarkService:
 
     async def list_cases(self, user: Any, agent_id: str) -> list[dict[str, Any]]:
         await self.authorize(user, agent_id)
-        return await io(self.repo.list_cases, agent_id)  # type: ignore[no-any-return]
+        return [self.visible_case(user, case) for case in await io(self.repo.list_cases, agent_id)]
 
     async def save_case(
         self, user: Any, agent_id: str, data: dict[str, Any], case_id: str | None = None
@@ -158,7 +176,7 @@ class BenchmarkService:
         saved = await io(
             self.repo.save_case, agent_id, values, case_id, expected_revision=old.get("revision")
         )
-        return saved  # type: ignore[no-any-return]
+        return self.visible_case(user, saved)
 
     async def _case(self, agent_id: str, case_id: str) -> dict[str, Any]:
         case = await io(self.repo.get_case, agent_id, case_id)
@@ -194,16 +212,38 @@ class BenchmarkService:
             raise OctopError.localized(ErrorCode.NOT_FOUND)
         return await io(self.repo.ignore_candidate, agent_id, user.id, candidate_id)  # type: ignore[no-any-return]
 
+    async def accept_feedback(
+        self, user: Any, agent_id: str, feedback_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        if not user.is_admin:
+            raise OctopError.localized(ErrorCode.FORBIDDEN)
+        await self.authorize(user, agent_id)
+        feedback = await io(self.services.feedback_repo.get_by_id, feedback_id)
+        if feedback is None or feedback["agent_id"] != agent_id:
+            raise OctopError.localized(ErrorCode.NOT_FOUND)
+        values = validate_case(data)
+        if values["status"] != "ready":
+            raise ValueError("criteria_required")
+        candidate = await io(self.repo.capture_feedback, feedback)
+        return await io(  # type: ignore[no-any-return]
+            self.repo.accept_candidate,
+            agent_id,
+            feedback["user_id"],
+            candidate["candidate_id"],
+            values,
+            reviewed_feedback=feedback,
+        )
+
     async def list_runs(self, user: Any, agent_id: str) -> list[dict[str, Any]]:
         await self.authorize(user, agent_id)
-        return [run_counts(run) for run in await io(self.repo.list_runs, agent_id)]
+        return [self.visible_run(user, run) for run in await io(self.repo.list_runs, agent_id)]
 
     async def get_run(self, user: Any, agent_id: str, run_id: str) -> dict[str, Any]:
         await self.authorize(user, agent_id)
         run = await io(self.repo.get_run, agent_id, run_id)
         if run is None:
             raise OctopError.localized(ErrorCode.NOT_FOUND)
-        return run_counts(run)
+        return self.visible_run(user, run)
 
     def runner(self) -> Any:
         from octop.infra.benchmarks.runner import BenchmarkRunner
@@ -229,7 +269,9 @@ class BenchmarkService:
             self.services.usage_repo,
             user.id,
         )
-        return run_counts(await self.runner().start(agent_id, user.id, name[:200], cases))
+        return self.visible_run(
+            user, await self.runner().start(agent_id, user.id, name[:200], cases)
+        )
 
     async def cancel_run(self, user: Any, agent_id: str, run_id: str) -> dict[str, Any]:
         await self.get_run(user, agent_id, run_id)
@@ -252,14 +294,15 @@ class BenchmarkService:
         result.update(
             status="passed" if passed else "failed", note=note[:4000], reviewer_id=user.id
         )
-        return run_counts(
+        return self.visible_run(
+            user,
             await io(
                 self.repo.update_result,
                 agent_id,
                 run_id,
                 case_id,
                 {"status": result["status"], "note": result["note"], "reviewer_id": user.id},
-            )
+            ),
         )
 
     async def export(self, user: Any, agent_id: str, split: str) -> list[dict[str, Any]]:

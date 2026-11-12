@@ -35,6 +35,9 @@ vi.mock("./ToolCatalogDrawer", () => ({ default: () => null }));
 vi.mock("./PluginCatalogDrawer", () => ({ default: () => null }));
 vi.mock("./MbtiCatalogDrawer", () => ({ default: () => null }));
 vi.mock("./ExternalApiDrawer", () => ({ default: () => null }));
+vi.mock("./useNamedStorageBackends", () => ({
+  useNamedStorageBackends: () => [],
+}));
 
 import { AgentCard } from "./AgentCard";
 import { TeamCard } from "./TeamCard";

@@ -15,6 +15,24 @@ const adminUser = {
 } as OctopUser;
 
 describe("sidebarNav", () => {
+  it("replaces the standalone feedback menu with one evaluation center", () => {
+    const items = buildNavSections(adminUser).flatMap(
+      (section) => section.items,
+    );
+    expect(items.filter((item) => item.path === "/benchmarks")).toEqual([
+      expect.objectContaining({
+        key: "admin-feedback",
+        labelKey: "benchmark.centerTitle",
+      }),
+    ]);
+    expect(items.some((item) => item.path === "/admin/feedback")).toBe(false);
+    const owner = { ...adminUser, role: "user", permissions: ["experts"] };
+    expect(
+      buildNavSections(owner)
+        .flatMap((section) => section.items)
+        .some((item) => item.path === "/benchmarks"),
+    ).toBe(true);
+  });
   it("preserves main_gys navigation without the removed launcher", () => {
     const items = buildNavSections(adminUser)[0].items;
     expect(items.map((item) => item.key)).toEqual([

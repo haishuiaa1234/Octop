@@ -20,12 +20,12 @@ vi.mock("../components/CurrentVersionBadge", () => ({
 import Header from "./Header";
 
 describe("Header", () => {
-  it("hides the version number while retaining the update action", () => {
+  it("hides the version number and update action", () => {
     render(<Header isMobile />);
     expect(screen.queryByText("v1.0.2b4")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Update available" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Update available" }),
+    ).not.toBeInTheDocument();
   });
 
   it("pads mobile chrome for iOS PWA safe-area inset", () => {

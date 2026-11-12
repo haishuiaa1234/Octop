@@ -126,10 +126,126 @@ def test_openapi_describes_all_benchmark_routes(app_env):
     app, _, _, _ = app_env
     schema = app.openapi()
     paths = {path: item for path, item in schema["paths"].items() if "benchmarks" in path}
-    assert len(paths) == 11
+    assert len(paths) == 12
     assert all(operation.get("summary") for item in paths.values() for operation in item.values())
     assert "CaseOut" in schema["components"]["schemas"]
     assert "RunOut" in schema["components"]["schemas"]
+
+
+@pytest.mark.asyncio
+async def test_admin_reviews_foreign_feedback_without_exposing_raw_source(app_env):
+    from unittest.mock import AsyncMock
+
+    app, repos, uid, oid = app_env
+    repos.thread_repo.insert(
+        thread_id="shared-thread",
+        agent_id="expert",
+        user_id=oid,
+        channel_type="dashboard",
+        session_key="shared-session",
+    )
+    feedback = repos.feedback_repo.save(
+        {
+            "user_id": oid,
+            "agent_id": "expert",
+            "agent_name": "Expert",
+            "thread_id": "shared-thread",
+            "message_id": "answer",
+            "rating": "unhelpful",
+            "reason": "factual_error",
+            "comment": "Private comment",
+            "correction": "Correct",
+            "reference": "Private reference",
+            "question": "Private question",
+            "answer": "Wrong",
+        }
+    )
+    root = "/api/agents/expert/benchmarks"
+    path = f"{root}/feedback/{feedback['feedback_id']}/accept"
+    data = {
+        "title": "Reviewed",
+        "question": "Sanitized question",
+        "reference_answer": "Correct",
+        "match_mode": "manual",
+        "status": "ready",
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.post(path, json=data)).status_code == 403
+        assert (await client.get(f"{root}/candidates")).json() == []
+        app.dependency_overrides[current_user] = lambda: User(uid, "admin", "admin", None)
+        assert (await client.post(path, json={**data, "status": "draft"})).status_code == 400
+        assert (await client.post(path, json={**data, "reference_answer": ""})).status_code == 400
+        missing = path.replace(feedback["feedback_id"], "missing")
+        assert (await client.post(missing, json=data)).status_code == 404
+        repos.agent_repo.create(agent_id="other", user_id=uid, name="Other")
+        assert (
+            await client.post(path.replace("/expert/", "/other/"), json=data)
+        ).status_code == 404
+        ignored = repos.benchmark_repo.capture_feedback(feedback)
+        repos.benchmark_repo.ignore_candidate("expert", oid, ignored["candidate_id"])
+        repos.feedback_repo.save({**feedback, "comment": "Updated private comment"})
+        response = await client.post(path, json=data)
+        assert response.status_code == 200, response.text
+        case = response.json()
+        assert case["source_feedback_id"] == feedback["feedback_id"]
+        assert case["source_snapshot"]["user_id"] == oid
+        assert case["source_snapshot"]["comment"] == "Updated private comment"
+        assert case["question"] == "Sanitized question"
+        assert (await client.post(path, json=data)).json()["case_id"] == case["case_id"]
+        assert len((await client.get(f"{root}/cases")).json()) == 1
+        app.dependency_overrides[current_user] = lambda: User(uid, "one", "user", None)
+        visible = (await client.get(f"{root}/cases")).json()[0]
+        assert visible["source_snapshot"] == {}
+        assert visible["question"] == "Sanitized question"
+        patched = await client.patch(f"{root}/cases/{case['case_id']}", json={"title": "Edited"})
+        assert patched.json()["source_snapshot"] == {}
+        exported = (await client.get(f"{root}/export?split=dev")).json()[0]
+        assert exported["source_snapshot"] == {}
+        run = repos.benchmark_repo.create_run(
+            "expert",
+            uid,
+            "Frozen",
+            {},
+            [
+                {
+                    "case_id": case["case_id"],
+                    "revision": 1,
+                    "case_snapshot": case,
+                    "status": "needs_review",
+                    "answer": "",
+                    "error": "",
+                    "duration_ms": 0,
+                }
+            ],
+        )
+        result = (await client.get(f"{root}/runs/{run['run_id']}")).json()
+        assert result["results"][0]["case_snapshot"]["source_snapshot"] == {}
+        listed = (await client.get(f"{root}/runs")).json()[0]
+        assert listed["results"][0]["case_snapshot"]["source_snapshot"] == {}
+        server = app.dependency_overrides[get_server]()
+        server.benchmark_runner = SimpleNamespace(start=AsyncMock(return_value=run))
+        started = await client.post(f"{root}/runs", json={"case_ids": [case["case_id"]]})
+        assert started.status_code == 200, started.text
+        assert started.json()["results"][0]["case_snapshot"]["source_snapshot"] == {}
+        repos.benchmark_repo.update_run("expert", run["run_id"], status="completed")
+        reviewed = await client.post(
+            f"{root}/runs/{run['run_id']}/results/{case['case_id']}/review",
+            json={"passed": True, "note": "Reviewed"},
+        )
+        assert reviewed.status_code == 200, reviewed.text
+        assert reviewed.json()["results"][0]["case_snapshot"]["source_snapshot"] == {}
+        compared = await client.get(
+            f"{root}/compare",
+            params={
+                "baseline": run["run_id"],
+                "candidate": run["run_id"],
+            },
+        )
+        assert compared.status_code == 200, compared.text
+        for side in ("baseline", "candidate"):
+            assert compared.json()[side]["results"][0]["case_snapshot"]["source_snapshot"] == {}
+        stored = repos.benchmark_repo.get_run("expert", run["run_id"])
+        assert stored["results"][0]["case_snapshot"]["source_snapshot"]["user_id"] == oid
 
 
 @pytest.mark.asyncio

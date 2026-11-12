@@ -5,6 +5,11 @@ import type { OctopAgent } from "../../../context/AgentContext";
 import SessionList from "./SessionList";
 import styles from "../index.module.less";
 
+vi.mock("./ChatEditExpertDrawer", () => ({
+  default: () => null,
+  canEditExpertFromChat: () => false,
+}));
+
 const team = {
   id: 1,
   agent_id: "shared-team",
@@ -48,6 +53,7 @@ describe("SessionList shared team names", () => {
     "gives shared team names a wrapping layout (expanded: %s)",
     (expanded) => {
       const { onNewChat, onAgentSelect } = renderList(team, expanded);
+      if (!expanded) fireEvent.click(screen.getByRole("tab", { name: "团队" }));
       const name = screen.getByText(team.name);
       expect(name).toHaveClass(styles.sharedTeamName);
       expect(name.nextElementSibling).toContainElement(

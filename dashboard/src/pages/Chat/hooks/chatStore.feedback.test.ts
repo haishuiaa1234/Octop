@@ -7,6 +7,82 @@ const session = "feedback-stream";
 afterEach(() => removeSession(session));
 
 describe("feedback answer identity", () => {
+  it("does not apply a late identity from a previous shared conversation turn", () => {
+    ingestHarnessChunk(session, {
+      type: "token",
+      node: "agent",
+      content: "First",
+      turn_id: "one",
+    });
+    ingestHarnessChunk(session, {
+      type: "token",
+      node: "agent",
+      content: "Second",
+      turn_id: "two",
+    });
+    ingestHarnessChunk(
+      session,
+      parseHarnessChunk(
+        "data: " +
+          JSON.stringify({
+            type: "answer_identity",
+            message_id: "first-answer",
+            turn_id: "one",
+          }),
+      )!,
+    );
+    expect(getSnapshot(session).messages[1].feedbackMessageId).toBeUndefined();
+  });
+  it("restores legacy response durations alongside the official history duration", () => {
+    const [legacy, official] = convertHistoryMessages([
+      {
+        role: "assistant",
+        id: "legacy",
+        content: "Legacy answer",
+        response_time_ms: 1234,
+      },
+      {
+        role: "assistant",
+        id: "official",
+        content: "Current answer",
+        duration_ms: 2345,
+      },
+    ]);
+    expect(legacy).toMatchObject({
+      feedbackMessageId: "legacy",
+      responseTimeMs: 1234,
+    });
+    expect(official).toMatchObject({
+      feedbackMessageId: "official",
+      durationMs: 2345,
+    });
+  });
+
+  it("keeps a live member catchup streaming while preserving its persisted identity", () => {
+    ingestHarnessChunk(
+      session,
+      parseHarnessChunk(
+        "data: " +
+          JSON.stringify({
+            type: "token",
+            content: "Catchup",
+            agent_id: "member",
+            message_id: "saved",
+            team_snapshot: true,
+            team_live: true,
+            turn_id: "member-turn",
+          }),
+      )!,
+      "host",
+    );
+    expect(getSnapshot(session).messages[0]).toMatchObject({
+      content: "Catchup",
+      feedbackMessageId: "saved",
+      status: "streaming",
+      turnId: "member-turn",
+    });
+    expect(getSnapshot(session).liveSpeakers).toContain("member");
+  });
   it("preserves the server message ID from token frames without replacing UI IDs", () => {
     const first = parseHarnessChunk(
       'data: {"type":"token","content":"Hello","message_id":"server1"}',

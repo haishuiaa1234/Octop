@@ -92,6 +92,7 @@ def _wire(
     *,
     admin: bool = False,
     roster: list[str] | None = None,
+    repos: Any | None = None,
 ) -> None:
     def load_user(user_id: int) -> Any:
         return SimpleNamespace(id=user_id, is_admin=admin)
@@ -103,7 +104,41 @@ def _wire(
         load_member_ids=lambda _host_id: list(
             roster if roster is not None else ["mine", "exp-a", "exp-b", "private", "ghost"]
         ),
+        repos=repos,
     )
+
+
+def test_peer_permissions_combine_group_restrictions_and_directed_grants(tmp_path: Path) -> None:
+    from octop.infra.db.migrate import run_migrations
+    from octop.infra.db.pool import SqlitePool
+    from octop.infra.db.services import RepoBundle
+    from octop.infra.users.groups import RESOURCE_EXPERT, GroupAccess
+
+    mgr, rows = _registry(tmp_path)
+    db = SqlitePool(tmp_path / "sharing.db")
+    run_migrations(db)
+    repos = RepoBundle.from_pool(db)
+    for index in range(1, 4):
+        assert repos.user_repo.create(username=f"user-{index}", role="user") == index
+    for aid, row in rows.items():
+        row.agent_id = aid
+        repos.agent_repo.create(agent_id=aid, user_id=row.user_id, name=aid, kind=row.kind)
+        repos.agent_repo.set_shared(aid, bool(row.is_shared))
+    group = repos.user_group_repo.create(name="restricted", description=None)
+    GroupAccess(repos).set_visibility(RESOURCE_EXPERT, "exp-a", "groups", [group.user_group_id])
+    repos.agent_share_target_repo.replace_for_agent("private", user_ids=[3], role_ids=[])
+    _wire(mgr, rows, repos=repos)
+    assert {entry.agent_id for entry in mgr.team.list_peers(3, exclude_agent_id="host")} == {
+        "mine",
+        "exp-b",
+        "private",
+    }
+    with pytest.raises(ValueError, match="not owned by user"):
+        mgr.team._resolve_peer_entry("host", "exp-a", 3)
+    assert mgr.team._resolve_peer_entry("host", "private", 3).agent_id == "private"
+    repos.agent_share_target_repo.replace_for_agent("exp-a", user_ids=[], role_ids=["user"])
+    assert mgr.team._resolve_peer_entry("host", "exp-a", 3).agent_id == "exp-a"
+    db.close()
 
 
 def test_host_lists_shared_members_and_skips_private(tmp_path: Path) -> None:

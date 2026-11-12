@@ -1,29 +1,52 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Tooltip } from "antd";
 import type { OctopAgent } from "../../../context/AgentContext";
+import {
+  SharedAvatarMark,
+  SharedResourceBadge,
+} from "../../../components/SharedResourceBadge";
 import { isSharedExpertViewer } from "../../../utils/sharedExpert";
 import { isTeamAgent } from "../../../utils/teamAgent";
-import styles from "../index.module.less";
 
-/** Marks an agent the current user only has shared access to, naming the owner. */
-export default function SharedExpertHint({ agent }: { agent: OctopAgent }) {
+/** Puts the shared pip on an expert avatar and names the owner on hover. */
+export default function SharedExpertHint({
+  agent,
+  className,
+  children,
+}: {
+  agent: OctopAgent;
+  className?: string;
+  children: ReactNode;
+}) {
   const { t } = useTranslation();
-  if (!isSharedExpertViewer(agent)) return null;
-  const tip = t(
-    isTeamAgent(agent) ? "chat.sharedTeam.banner" : "chat.sharedExpert.banner",
-    {
-      name: agent.owner_username || "—",
-    },
-  );
+  const shared = isSharedExpertViewer(agent);
   return (
-    <Tooltip title={tip} mouseEnterDelay={0.35}>
-      <span
-        className={styles.sharedExpertFlag}
-        aria-label={tip}
-        onClick={(event) => event.stopPropagation()}
-      >
-        {t("chat.sharedExpert.flag")}
-      </span>
-    </Tooltip>
+    <SharedAvatarMark
+      className={className}
+      shared={shared}
+      owned={!shared}
+      ownerName={agent.owner_username}
+      label={t(
+        isTeamAgent(agent)
+          ? "chat.sharedTeam.banner"
+          : "chat.sharedExpert.banner",
+        {
+          name: agent.owner_username || "—",
+        },
+      )}
+    >
+      {children}
+    </SharedAvatarMark>
+  );
+}
+
+/** “已共享” pill beside an expert title the current user owns and has shared. */
+export function ExpertOwnerShareFlag({ agent }: { agent: OctopAgent }) {
+  return (
+    <SharedResourceBadge
+      shared={agent.is_shared === true && agent.is_owner !== false}
+      owned
+      ownerName={agent.owner_username}
+    />
   );
 }

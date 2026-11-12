@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from octop.api.common.agent import (
+    apply_agent_audience,
     assert_agent_access_row,
     assert_agent_owner,
     replace_share_targets,
@@ -24,6 +25,7 @@ from octop.infra.agents.teams import (
     team_icon_url,
 )
 from octop.infra.errors import ErrorCode, OctopError
+from octop.infra.users.groups import GroupAccess
 
 router = APIRouter()
 
@@ -37,12 +39,25 @@ class TeamCreateBody(BaseModel):
     icon_url: str | None = None
     welcome_message: str | None = None
     member_ids: list[str] = Field(default_factory=list)
-    config: dict[str, Any] = Field(default_factory=dict)
     is_shared: bool = Field(
         default=False, description="Allow all other users to chat with this team."
     )
     shared_user_ids: list[int] = Field(default_factory=list)
     shared_role_ids: list[str] = Field(default_factory=list)
+    visibility: Literal["owner", "all", "groups"] | None = None
+    group_ids: list[str] | None = None
+    agent_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Optional custom agent id; auto-generated when omitted",
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Harness config. ``workspace_dir`` is kept only when ``backend`` is "
+            "local_shell or filesystem rooted at the filesystem root."
+        ),
+    )
 
 
 class TeamPatchBody(BaseModel):
@@ -51,11 +66,14 @@ class TeamPatchBody(BaseModel):
     default_model: str | None = None
     color: str | None = None
     icon_name: str | None = None
+    icon_url: str | None = None
     welcome_message: str | None = None
     member_ids: list[str] | None = None
     is_shared: bool | None = Field(default=None, description="Owner-only sharing toggle.")
     shared_user_ids: list[int] | None = None
     shared_role_ids: list[str] | None = None
+    visibility: Literal["owner", "all", "groups"] | None = None
+    group_ids: list[str] | None = None
 
 
 class TeamMemberSummary(BaseModel):
@@ -88,6 +106,8 @@ class TeamResponse(BaseModel):
     members: list[TeamMemberSummary]
     shared_user_ids: list[int]
     shared_role_ids: list[str]
+    visibility: Literal["owner", "all", "groups"]
+    group_ids: list[str]
 
 
 def _teams(server: Any) -> Any:
@@ -104,7 +124,7 @@ def _require_team(server: Any, user: Any, team_id: str, *, owner_only: bool = Tr
         assert_agent_owner(row, user)
     else:
         targets = server.services.agent_share_target_repo.list_for_agent(team_id)
-        assert_agent_access_row(row, user, share_targets=targets)
+        assert_agent_access_row(row, user, share_targets=targets, repos=server.services.repos)
     return row
 
 
@@ -127,8 +147,17 @@ async def create_team(
     teams = _teams(server)
     member_ids = teams.validate_member_ids(user, body.member_ids)
     assert server.app_runtime is not None
+    from octop.infra.agents.workspace.dir import apply_explicit_workspace_dir  # noqa: PLC0415
+
+    config = dict(body.config)
+    raw_workspace = config.pop("workspace_dir", None)
+    apply_explicit_workspace_dir(
+        config,
+        raw_workspace if isinstance(raw_workspace, str) else None,
+    )
     spec = AgentCreateSpec(
         name=body.name.strip(),
+        agent_id=(body.agent_id or "").strip() or None,
         user_id=user.id,
         description=body.description,
         default_model=body.default_model,
@@ -138,12 +167,22 @@ async def create_team(
         welcome_message=body.welcome_message,
         template_name=TEAM_TEMPLATE_NAME,
         kind=TEAM_KIND,
-        config=body.config,
+        config=config,
         member_ids=member_ids,
         mcp_servers=[],
         is_shared=body.is_shared,
     )
+    if body.visibility is not None:
+        GroupAccess(server.services.repos).validate_visibility(body.visibility, body.group_ids)
     row = await server.app_runtime.agent_registry.create(spec)
+    if body.visibility is not None:
+        row = await apply_agent_audience(
+            server,
+            row.agent_id,
+            visibility=body.visibility,
+            group_ids=body.group_ids,
+            shared=body.is_shared,
+        )
     replace_share_targets(
         server,
         row.agent_id,
@@ -223,12 +262,20 @@ async def patch_team(
         updates["color"] = body.color
     if body.icon_name is not None:
         updates["icon_name"] = body.icon_name
+    if "icon_url" in body.model_fields_set:
+        updates["icon_url"] = team_icon_url(body.icon_url)
     if body.welcome_message is not None:
         updates["welcome_message"] = body.welcome_message
     if updates:
         await server.app_runtime.agent_registry.update(team_id, **updates)
-    if body.is_shared is not None:
-        await server.app_runtime.agent_registry.set_shared(team_id, body.is_shared)
+    if body.visibility is not None or body.is_shared is not None:
+        await apply_agent_audience(
+            server,
+            team_id,
+            visibility=body.visibility,
+            group_ids=body.group_ids,
+            shared=body.is_shared,
+        )
     if "shared_user_ids" in body.model_fields_set or "shared_role_ids" in body.model_fields_set:
         current_users, current_roles = share_target_ids(server, team_id)
         replace_share_targets(

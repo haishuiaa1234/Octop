@@ -102,6 +102,18 @@ describe("MessageBubble team speaker chrome", () => {
     expect(screen.getByText("chat.responseDuration")).toBeInTheDocument();
   });
 
+  it("does not duplicate duration when both server protocols provide timing", () => {
+    render(
+      <MessageBubble
+        message={assistant({ responseTimeMs: 1234, durationMs: 1300 })}
+        agentId="host"
+        groupPosition="only"
+      />,
+    );
+    expect(screen.getAllByText("chat.responseDuration")).toHaveLength(1);
+    expect(screen.queryByText("chatUsage.elapsed")).not.toBeInTheDocument();
+  });
+
   it("uses private member summaries without enabling profile management", () => {
     render(
       <ChatAgentProfileProvider

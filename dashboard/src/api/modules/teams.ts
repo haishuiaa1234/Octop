@@ -1,4 +1,5 @@
 import { request } from "../request";
+import type { ResourceVisibilityMode } from "./userGroups";
 
 export interface TeamMemberSummary {
   agent_id: string;
@@ -24,6 +25,8 @@ export interface TeamRecord {
   state?: string;
   kind: "team";
   is_shared: boolean;
+  visibility?: ResourceVisibilityMode;
+  group_ids?: string[];
   shared_user_ids: number[];
   shared_role_ids: string[];
   is_owner: boolean;
@@ -41,9 +44,15 @@ export interface TeamWriteBody {
   icon_url?: string | null;
   welcome_message?: string | null;
   is_shared?: boolean;
+  visibility?: ResourceVisibilityMode;
+  group_ids?: string[];
   shared_user_ids?: number[];
   shared_role_ids?: string[];
   member_ids?: string[];
+  /** Create only. Matches the id segment of the default workspace path. */
+  agent_id?: string;
+  /** Create only: backend and, for a filesystem root, optional workspace_dir. */
+  config?: Record<string, unknown>;
 }
 
 export interface TeamTemplateFile {

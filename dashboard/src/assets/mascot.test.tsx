@@ -79,7 +79,7 @@ describe("Shared Shi Xiao He mascot", () => {
 
   it.each([
     resolve(dashboard, "public", logo.slice(1)),
-    resolve(dashboard, "../desktop/src/assets", logo.slice(1)),
+    resolve(dashboard, "../desktop/src/renderer/src/assets", logo.slice(1)),
   ])("ships the supplied image unchanged at %s", (path) => {
     const bytes = readFileSync(path);
 
@@ -89,14 +89,15 @@ describe("Shared Shi Xiao He mascot", () => {
   });
 
   it("does not switch the desktop startup mascot back to the red artwork", () => {
-    const html = readFileSync(
-      resolve(dashboard, "../desktop/src/assets/index.html"),
+    const source = readFileSync(
+      resolve(dashboard, "../desktop/src/renderer/src/splash.tsx"),
       "utf8",
     );
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    expect(doc.querySelector("#mascot")?.getAttribute("src")).toBe(logo);
-    expect(html).not.toContain("octop-mascot-");
-    expect(html).not.toContain("pickMascot");
+    expect(source).toContain("./assets/shixiaohe-mascot.png");
+    expect(source).toContain(
+      'brand === "dinfectome" ? dinfectomeMascotUrl : mascotUrl',
+    );
+    expect(source).not.toContain("octop-mascot-");
+    expect(source).not.toContain("pickMascot");
   });
 });

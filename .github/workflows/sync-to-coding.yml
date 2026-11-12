@@ -1,0 +1,64 @@
+name: Sync to CODING
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coding-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'haishuiaa1234/Octop' && github.event.deleted != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the pushed ref with complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure workspace-only SSH authentication
+        shell: bash
+        env:
+          CODING_SYNC_SSH_KEY: ${{ secrets.CODING_SYNC_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CODING_SYNC_SSH_KEY" ]]; then
+            echo "::error::Configure the CODING_SYNC_SSH_KEY Actions secret first."
+            exit 1
+          fi
+          umask 077
+          key="$RUNNER_TEMP/coding-sync-key"
+          hosts="$RUNNER_TEMP/coding-sync-known-hosts"
+          printf '%s\n' "$CODING_SYNC_SSH_KEY" > "$key"
+          ssh-keygen -y -P '' -f "$key" >/dev/null
+          ssh-keyscan -T 15 -t rsa e.coding.net > "$hosts"
+          fingerprint=$(ssh-keygen -lf "$hosts" | awk '{print $2}' | sort -u)
+          if [[ "$fingerprint" != 'SHA256:jok3FH7q5LJ6qvE7iPNehBgXRw51ErE77S0Dn+Vg/Ik' ]]; then
+            echo "::error::CODING SSH host fingerprint does not match the verified value."
+            exit 1
+          fi
+          printf -v ssh_command \
+            'ssh -i %q -o UserKnownHostsFile=%q -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15' \
+            "$key" "$hosts"
+          printf 'GIT_SSH_COMMAND=%s\n' "$ssh_command" >> "$GITHUB_ENV"
+
+      - name: Sync the matching branch or tag without force
+        shell: bash
+        env:
+          CODING_SYNC_REF: ${{ github.ref }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: bash scripts/ci/sync_coding.sh git@e.coding.net:geneseeq/hospital/workspace.git "$CODING_SYNC_REF"
+
+      - name: Remove runner credentials
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/coding-sync-key" "$RUNNER_TEMP/coding-sync-known-hosts"

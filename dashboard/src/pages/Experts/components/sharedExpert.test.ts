@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canReadAgentRuntimeStatus,
   chatSkillCatalogAgentId,
   isOwnedExpert,
   isSharedExpertViewer,
@@ -8,6 +9,21 @@ import {
   ownedTeamAgents,
 } from "../../../utils/sharedExpert";
 
+describe("canReadAgentRuntimeStatus", () => {
+  const shared = { is_shared: true, is_owner: false };
+
+  it("allows the owner and an admin, and skips a shared viewer", () => {
+    expect(canReadAgentRuntimeStatus(shared, { role: "user" })).toBe(false);
+    expect(canReadAgentRuntimeStatus(shared, { role: "admin" })).toBe(true);
+    expect(
+      canReadAgentRuntimeStatus(
+        { is_shared: true, is_owner: true },
+        { role: "user" },
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("isSharedExpertViewer", () => {
   it("identifies a shared expert viewed by someone other than its owner", () => {
     expect(isSharedExpertViewer({ is_shared: true, is_owner: false })).toBe(
@@ -15,13 +31,19 @@ describe("isSharedExpertViewer", () => {
     );
   });
 
-  it("does not treat the owner or a private expert as a viewer", () => {
+  it("keeps the owner writable and a targeted-only recipient read-only", () => {
     expect(isSharedExpertViewer({ is_shared: true, is_owner: true })).toBe(
       false,
     );
     expect(isSharedExpertViewer({ is_shared: false, is_owner: false })).toBe(
-      false,
+      true,
     );
+  });
+
+  it("keeps workspace tools for the owning account even if is_owner is false", () => {
+    const owned = { is_shared: true, is_owner: false, user_id: 7 };
+    expect(isSharedExpertViewer(owned, { id: 7 })).toBe(false);
+    expect(isSharedExpertViewer(owned, { id: 8 })).toBe(true);
   });
 });
 

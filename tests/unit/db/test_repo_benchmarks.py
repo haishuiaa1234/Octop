@@ -97,7 +97,7 @@ def test_runs_freeze_json_and_interrupt(store):
     assert repo.list_runs("a")[0]["config_snapshot"] == {"model": "fake"}
     run_migrations(db)
     with db.connect() as conn:
-        assert conn.execute("SELECT version FROM _schema_version").fetchone()[0] == 23
+        assert conn.execute("SELECT version FROM _schema_version").fetchone()[0] == 28
 
 
 def test_restart_terminalizes_unfinished_results(store):

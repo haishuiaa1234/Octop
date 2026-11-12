@@ -15,13 +15,29 @@ from octop.infra.benchmarks.service import grade_answer, io
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.gateway.process.usage_record import turn_usage_from_messages
 from octop.infra.history.answer_text import visible_text
+from octop.infra.users.groups import model_ref_allowed
 from octop.infra.users.resource_policy import assert_token_quota_available
 
 logger = logging.getLogger(__name__)
 Evaluator = Callable[[str, str], Awaitable[dict[str, Any]]]
 
 
-async def prepare_evaluator(server: Any, agent_id: str) -> tuple[dict[str, Any], Evaluator]:
+def _assert_model_access(services: Any, user_id: int, model_ref: str | None) -> None:
+    user = services.user_repo.get(user_id)
+    if user is None or user.disabled:
+        raise OctopError.localized(ErrorCode.FORBIDDEN)
+    if not model_ref_allowed(
+        getattr(services, "repos", services),
+        user_id=user_id,
+        is_admin=user.role == "admin",
+        model_ref=model_ref,
+    ):
+        raise OctopError.localized(ErrorCode.RESOURCE_NOT_ALLOWED)
+
+
+async def prepare_evaluator(
+    server: Any, agent_id: str, user_id: int
+) -> tuple[dict[str, Any], Evaluator]:
     runtime = server.app_runtime
     if runtime is None:
         raise OctopError.localized(ErrorCode.AGENT_NOT_RUNNING)
@@ -32,7 +48,8 @@ async def prepare_evaluator(server: Any, agent_id: str) -> tuple[dict[str, Any],
         raise ValueError("unsupported_expert")
     agent = runtime.agent_registry.get_agent(agent_id)
     config = agent.config
-    ref = agent.model_factory.resolve_ref("auto")
+    ref = config.pick_default_model_ref()
+    await io(_assert_model_access, server.services, user_id, ref)
     model = await io(agent.model_factory.get_chat_model, ref)
     instructions = [config.system_prompt or ""]
     for path in ("SOUL.md", "AGENTS.md"):
@@ -87,7 +104,7 @@ class BenchmarkRunner:
             active = [(aid, task) for aid, task in self._tasks.values() if not task.done()]
             if self._closing or len(active) >= 4 or any(aid == agent_id for aid, _ in active):
                 raise OctopError.localized(ErrorCode.AGENT_BUSY)
-            snapshot, evaluate = await prepare_evaluator(self.server, agent_id)
+            snapshot, evaluate = await prepare_evaluator(self.server, agent_id, user_id)
             snapshot["split"] = cases[0]["split"]
             results = [
                 {
@@ -137,6 +154,12 @@ class BenchmarkRunner:
                         self.server.services.user_policy_repo,
                         self.server.services.usage_repo,
                         run["user_id"],
+                    )
+                    await io(
+                        _assert_model_access,
+                        self.server.services,
+                        run["user_id"],
+                        run["config_snapshot"]["model_ref"],
                     )
                     output = await asyncio.wait_for(
                         evaluate(case["question"], case["context"]), 120

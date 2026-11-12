@@ -73,7 +73,15 @@ def team_icon_url(stored: str | None) -> str:
     return text
 
 
-def _user_may_use_member(row: AgentRow, user: Any) -> bool:
+def _user_may_use_member(row: AgentRow, user: Any, *, repos: Any | None = None) -> bool:
+    if user is None:
+        return False
+    if repos is not None:
+        from octop.infra.users.groups import expert_visible_to  # noqa: PLC0415
+
+        return expert_visible_to(
+            repos, row, user_id=user.id, is_admin=bool(getattr(user, "is_admin", False))
+        )
     if getattr(user, "is_admin", False):
         return True
     if row.user_id is not None and row.user_id == getattr(user, "id", None):
@@ -210,7 +218,11 @@ class TeamService:
                 continue
             seen.add(member_id)
             row = self._repos.agent_repo.get(member_id)
-            if row is None or is_team_agent(row) or not _user_may_use_member(row, user):
+            if (
+                row is None
+                or is_team_agent(row)
+                or not _user_may_use_member(row, user, repos=self._repos)
+            ):
                 invalid.append(member_id)
                 continue
             out.append(member_id)
@@ -284,11 +296,16 @@ class TeamService:
         return changed
 
     def team_payload(self, row: AgentRow, *, viewer_user_id: int | None = None) -> dict[str, Any]:
+        from octop.infra.users.groups import RESOURCE_EXPERT, GroupAccess  # noqa: PLC0415
+
         ids = self.visible_member_ids(row.agent_id)
         member_rows = [self._repos.agent_repo.get(member_id) for member_id in ids]
         owner = self._repos.user_repo.get(row.user_id) if row.user_id is not None else None
         share_targets = self._repos.agent_share_target_repo.list_for_agent(row.agent_id)
         return {
+            **GroupAccess(self._repos).visibility(
+                RESOURCE_EXPERT, row.agent_id, shared=bool(int(row.is_shared or 0))
+            ),
             "team_id": row.agent_id,
             "agent_id": row.agent_id,
             "name": row.name,
@@ -342,7 +359,8 @@ class TeamService:
             or is_team_agent(member)
             or member_id not in self.member_ids(team_id)
             or not (
-                (owner is not None and owner.role == "admin") or _user_may_use_member(member, owner)
+                (owner is not None and owner.role == "admin")
+                or _user_may_use_member(member, owner, repos=self._repos)
             )
         ):
             raise OctopError(ErrorCode.TEAM_MEMBER_INVALID, "member not accessible through team")
@@ -359,6 +377,7 @@ class TeamService:
             exclude_user_id=user_id,
             user_id=user_id,
             role_id=user.role if user is not None else None,
+            viewer_user_id=None if user is not None and user.role == "admin" else user_id,
         )
         rows = {row.agent_id: row for row in [*owned, *shared]}
         return [

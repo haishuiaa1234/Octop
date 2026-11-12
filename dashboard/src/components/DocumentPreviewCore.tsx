@@ -21,6 +21,7 @@ import {
 import { Button, Image, Tabs } from "antd";
 import { ArrowDownToLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import cx from "classnames";
 import { isNotFoundApiError } from "../utils/apiError";
 import type { DocKind } from "../utils/docKind";
 import styles from "./DocumentPreviewCore.module.less";
@@ -36,8 +37,13 @@ export interface DocumentPreviewCoreProps {
     onProgress?: (loaded: number, total: number) => void,
     signal?: AbortSignal,
   ) => Promise<Blob>;
-  /** Optional download when the kind cannot be rendered (e.g. legacy ``.ppt``). */
+  /** Optional download when the kind cannot be rendered (legacy ``.ppt`` / ``.doc``). */
   onDownload?: () => void | Promise<void>;
+}
+
+/** Office binaries with no in-browser renderer (legacy ``.ppt`` / ``.doc``). */
+function isDownloadOnlyKind(kind: DocKind): boolean {
+  return kind === "ppt" || kind === "doc";
 }
 
 function isAbortError(err: unknown): boolean {
@@ -419,7 +425,7 @@ function OfficeDocumentPreviewCore({
     pptxViewerRef.current?.destroy();
     pptxViewerRef.current = null;
     if (containerRef.current) containerRef.current.innerHTML = "";
-    if (kind === "ppt") {
+    if (isDownloadOnlyKind(kind)) {
       setLoading(false);
       return;
     }
@@ -588,7 +594,7 @@ function OfficeDocumentPreviewCore({
     );
   }
 
-  if (kind === "ppt") {
+  if (isDownloadOnlyKind(kind)) {
     return (
       <div className={styles.viewerEmpty}>
         <p
@@ -744,9 +750,10 @@ function OfficeDocumentPreviewCore({
           ) : null}
         </div>
         <div
-          className={`${styles.documentLoading}${
-            loading ? "" : ` ${styles.documentLoadingHidden}`
-          }`}
+          className={cx(
+            styles.documentLoading,
+            !loading && styles.documentLoadingHidden,
+          )}
           aria-hidden={!loading}
         >
           <DocumentPreviewLoading
@@ -765,9 +772,10 @@ function OfficeDocumentPreviewCore({
         ref={containerRef}
       />
       <div
-        className={`${styles.documentLoading}${
-          loading ? "" : ` ${styles.documentLoadingHidden}`
-        }`}
+        className={cx(
+          styles.documentLoading,
+          !loading && styles.documentLoadingHidden,
+        )}
         aria-hidden={!loading}
       >
         <DocumentPreviewLoading

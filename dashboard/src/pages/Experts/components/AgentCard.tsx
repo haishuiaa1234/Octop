@@ -28,16 +28,25 @@ import { request } from "../../../api/request";
 import type { OctopAgent } from "../../../context/AgentContext";
 import { useAgent } from "../../../context/AgentContext";
 import MbtiPersonaTag from "../../../components/MbtiPersonaTag";
+import BackendFlag from "./BackendFlag";
 import { ExpertIcon } from "./iconForName";
 import {
   formatAgentError,
   formatAgentState,
   isAgentChatReady,
   isAgentModelConfigError,
+  shortAgentError,
 } from "../../../utils/agentError";
+import { apiErrorMessage } from "../../../utils/apiError";
 import styles from "../index.module.less";
 import RemoteExpertHint from "../../Chat/components/RemoteExpertHint";
 import { expertDeleteConfirm } from "../../../utils/remoteExpert";
+import { SharedAvatarMark } from "../../../components/SharedResourceBadge";
+import {
+  canReadAgentRuntimeStatus,
+  isSharedExpertViewer,
+} from "../../../utils/sharedExpert";
+import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import type { PublishedExpert } from "../../../api/modules/publishedExperts";
 import PublishTemplateButton from "./PublishTemplateButton";
 import AgentMoreActions from "./AgentMoreActions";
@@ -89,8 +98,11 @@ export const AgentCard = memo(function AgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const user = useCurrentUser();
   const { setActiveAgent, refresh: refreshAgents } = useAgent();
   const isOwner = agent.is_owner !== false;
+  const sharedViewer = isSharedExpertViewer(agent, user);
+  const statusReadable = canReadAgentRuntimeStatus(agent, user);
 
   const [localState, setLocalState] = useState(agent.state);
   const [localError, setLocalError] = useState(agent.last_error);
@@ -115,7 +127,7 @@ export const AgentCard = memo(function AgentCard({
     setLocalError(agent.last_error);
   }, [agent.state, agent.last_error]);
 
-  // Poll during transient states (local agents only — bridge shadows have no runtime status).
+  // Shared viewers can poll the readable detail route, never owner-only maintenance.
   useEffect(() => {
     if (agent.bridge || !TRANSIENT.has(localState)) {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -149,14 +161,14 @@ export const AgentCard = memo(function AgentCard({
     localState,
     agent.agent_id,
     agent.bridge,
-    isOwner,
+    statusReadable,
     onStateChange,
     onPollSettled,
     refreshAgents,
   ]);
 
   useEffect(() => {
-    if (!isOwner || agent.bridge || localState !== "running") {
+    if (agent.bridge || !statusReadable || localState !== "running") {
       setMemorySlimming(false);
       if (maintPollRef.current) {
         clearInterval(maintPollRef.current);
@@ -198,7 +210,7 @@ export const AgentCard = memo(function AgentCard({
         maintPollRef.current = null;
       }
     };
-  }, [localState, agent.agent_id, agent.bridge, isOwner]);
+  }, [localState, agent.agent_id, agent.bridge, statusReadable]);
 
   const isTransient = TRANSIENT.has(localState);
   const switchChecked = localState === "running" || localState === "starting";
@@ -218,11 +230,15 @@ export const AgentCard = memo(function AgentCard({
           onStateChange(agent.agent_id, "stopping");
           message.success(t("experts.agentStopped", { name: agent.name }));
         }
-      } catch {
+      } catch (error) {
         message.error(
-          checked
-            ? t("experts.agentStartFailed")
-            : t("experts.agentStopFailed"),
+          apiErrorMessage(
+            error,
+            checked
+              ? t("experts.agentStartFailed")
+              : t("experts.agentStopFailed"),
+            t,
+          ),
         );
       } finally {
         setActionLoading(false);
@@ -287,6 +303,8 @@ export const AgentCard = memo(function AgentCard({
   const accent = accentColor || "#6366f1";
   const meta = getStateMeta(localState);
   const friendlyError = formatAgentError(localError, t);
+  const cardError = shortAgentError(localError, t);
+  const modelConfigError = isAgentModelConfigError(localError);
   const chatReady = isAgentChatReady(localState);
   const deleteConfirm = expertDeleteConfirm(agent, t);
 
@@ -301,16 +319,22 @@ export const AgentCard = memo(function AgentCard({
 
         {/* Header */}
         <div className={styles.agentCard2Header}>
-          <div
-            className={styles.agentCard2Icon}
-            style={{ color: accent, background: `${accent}1a` }}
+          <SharedAvatarMark
+            shared={agent.is_shared || sharedViewer}
+            owned={!sharedViewer}
+            ownerName={agent.owner_username}
           >
-            <ExpertIcon
-              iconUrl={iconUrl ?? agent.icon_url}
-              iconName={iconName ?? agent.icon_name}
-              size={iconUrl ?? agent.icon_url ? 42 : 22}
-            />
-          </div>
+            <div
+              className={styles.agentCard2Icon}
+              style={{ color: accent, background: `${accent}1a` }}
+            >
+              <ExpertIcon
+                iconUrl={iconUrl ?? agent.icon_url}
+                iconName={iconName ?? agent.icon_name}
+                size={iconUrl ?? agent.icon_url ? 42 : 22}
+              />
+            </div>
+          </SharedAvatarMark>
 
           <div className={styles.agentCard2TitleBlock}>
             <div className={styles.agentCard2NameRow}>
@@ -336,7 +360,7 @@ export const AgentCard = memo(function AgentCard({
                   <Copy size={11} className={styles.agentCardIdIcon} />
                 </button>
               </Tooltip>
-              {agent.is_shared && agent.owner_username && (
+              {(agent.is_shared || sharedViewer) && agent.owner_username && (
                 <span
                   className={styles.agentShareCreator}
                   title={t("experts.share.creator", {
@@ -361,11 +385,12 @@ export const AgentCard = memo(function AgentCard({
               {memorySlimming && (
                 <Tag color="processing">{t("experts.memorySlimming")}</Tag>
               )}
+              <BackendFlag config={agent.config} />
               <MbtiPersonaTag
                 value={agent.persona_mbti}
                 onClick={isOwner ? () => setMbtiCatalogOpen(true) : undefined}
               />
-              {agent.is_shared && (
+              {(agent.is_shared || sharedViewer) && (
                 <Tag color="blue">{t("experts.share.badge")}</Tag>
               )}
             </div>
@@ -397,12 +422,10 @@ export const AgentCard = memo(function AgentCard({
             >
               <div className={styles.agentCardError}>
                 <AlertCircle size={13} className={styles.agentCardErrorIcon} />
-                <span className={styles.agentCardErrorText}>
-                  {friendlyError}
-                </span>
+                <span className={styles.agentCardErrorText}>{cardError}</span>
               </div>
             </Tooltip>
-            {isOwner && isAgentModelConfigError(localError) && (
+            {isOwner && modelConfigError && (
               <button
                 type="button"
                 className={styles.agentCardErrorAction}

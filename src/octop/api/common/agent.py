@@ -43,9 +43,8 @@ def share_target_ids(server: Any, agent_id: str) -> tuple[list[int], list[str]]:
     return users, roles
 
 
-def replace_share_targets(
+def validate_share_targets(
     server: Any,
-    agent_id: str,
     *,
     user_ids: list[int],
     role_ids: list[str],
@@ -62,6 +61,19 @@ def replace_share_targets(
     for role_id in normalized_roles:
         if role_repo.get(role_id) is None:
             raise OctopError(ErrorCode.NOT_FOUND, f"role {role_id} not found")
+    return normalized_users, normalized_roles
+
+
+def replace_share_targets(
+    server: Any,
+    agent_id: str,
+    *,
+    user_ids: list[int],
+    role_ids: list[str],
+) -> tuple[list[int], list[str]]:
+    normalized_users, normalized_roles = validate_share_targets(
+        server, user_ids=user_ids, role_ids=role_ids
+    )
     server.services.agent_share_target_repo.replace_for_agent(
         agent_id,
         user_ids=normalized_users,
@@ -87,16 +99,26 @@ def assert_agent_owner(row: Any, user: Any) -> None:
         raise OctopError(ErrorCode.FORBIDDEN, "agent not owned by user")
 
 
-def _user_may_access(row: Any, user: Any, share_targets: Iterable[Any] = ()) -> bool:
+def _user_may_access(
+    row: Any, user: Any, share_targets: Iterable[Any] = (), *, repos: Any | None = None
+) -> bool:
     if user.is_admin:
         return True
     if row.user_id is not None and row.user_id == user.id:
         return True
-    return bool(agent_is_shared(row)) or agent_has_share_target(row, user, share_targets)
+    if agent_has_share_target(row, user, share_targets):
+        return True
+    if repos is not None:
+        from octop.infra.users.groups import expert_visible_to  # noqa: PLC0415
+
+        return expert_visible_to(repos, row, user_id=user.id, is_admin=False)
+    return agent_is_shared(row)
 
 
-def assert_agent_access_row(row: Any, user: Any, *, share_targets: Iterable[Any] = ()) -> None:
-    if not _user_may_access(row, user, share_targets):
+def assert_agent_access_row(
+    row: Any, user: Any, *, share_targets: Iterable[Any] = (), repos: Any | None = None
+) -> None:
+    if not _user_may_access(row, user, share_targets, repos=repos):
         raise OctopError(ErrorCode.FORBIDDEN, "agent not accessible to user")
 
 
@@ -122,7 +144,8 @@ def require_agent_row(
             raise OctopError(ErrorCode.FORBIDDEN, "agent not owned by as_user")
     else:
         targets = _list_share_targets(server, agent_id)
-        assert_agent_access_row(row, user, share_targets=targets)
+        repos = getattr(getattr(server, "services", None), "repos", None)
+        assert_agent_access_row(row, user, share_targets=targets, repos=repos)
     return row
 
 
@@ -136,6 +159,34 @@ def require_agent_owner_row(
     """Load an agent row and require owner-level access."""
     row = require_agent_row(agent_id, user=user, as_user=as_user, server=server)
     assert_agent_owner(row, user)
+    return row
+
+
+async def apply_agent_audience(
+    server: Any,
+    agent_id: str,
+    *,
+    visibility: str | None,
+    group_ids: list[str] | None,
+    shared: bool | None,
+) -> Any:
+    """Persist who may use an expert. ``visibility`` overrides ``shared``.
+
+    Callers must validate ``visibility`` before creating the row when a failed
+    group choice should not leave a new expert behind.
+    """
+    from octop.infra.users.groups import RESOURCE_EXPERT, GroupAccess  # noqa: PLC0415
+
+    access = GroupAccess(server.services.repos)
+    registry = server.app_runtime.agent_registry
+    if visibility is not None:
+        access.validate_visibility(visibility, group_ids)
+        row = await registry.set_shared(agent_id, visibility != "owner")
+        access.set_visibility(RESOURCE_EXPERT, agent_id, visibility, group_ids)
+        return row
+    flag = bool(shared)
+    row = await registry.set_shared(agent_id, flag)
+    access.set_visibility(RESOURCE_EXPERT, agent_id, "all" if flag else "owner", [])
     return row
 
 

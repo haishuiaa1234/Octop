@@ -4,6 +4,7 @@ import {
   SHIXIAOHE_MASCOT_SRC,
 } from "../../assets/mascot";
 import { useServerBrand } from "../../hooks/useServerBrand";
+import cx from "classnames";
 import styles from "./StreamConnectingIndicator.module.less";
 
 interface StreamConnectingIndicatorProps {
@@ -32,13 +33,11 @@ export default function StreamConnectingIndicator({
     brand === "dinfectome"
       ? getDinfectomeMascotSrc("connecting")
       : SHIXIAOHE_MASCOT_SRC;
-  const rootClass = [
+  const rootClass = cx(
     styles.root,
-    tone === "onDark" ? styles.onDark : "",
-    size === "sm" ? styles.sizeSm : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    tone === "onDark" && styles.onDark,
+    size === "sm" && styles.sizeSm,
+  );
 
   return (
     <div className={rootClass}>

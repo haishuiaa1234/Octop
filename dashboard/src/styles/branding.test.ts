@@ -9,7 +9,10 @@ import { websiteLocales } from "../pages/Websites/locales";
 
 const dashboard = resolve(__dirname, "../..");
 const name = "智能工作台";
-const html = readFileSync(resolve(dashboard, "index.html"), "utf8");
+const html = readFileSync(resolve(dashboard, "index.html"), "utf8").replaceAll(
+  "%BASE_URL%",
+  "/",
+);
 const manifest = JSON.parse(
   readFileSync(resolve(dashboard, "public/manifest.json"), "utf8"),
 );
@@ -83,15 +86,21 @@ describe("Geneseeq workbench identity", () => {
     expect(stale).toEqual([]);
   });
 
-  it("uses the workbench name in the desktop startup and settings page", () => {
+  it("uses the workbench name and mascot in the Electron startup page", () => {
     const desktop = readFileSync(
-      resolve(dashboard, "../desktop/src/assets/index.html"),
+      resolve(dashboard, "../desktop/src/renderer/splash.html"),
       "utf8",
     );
     const doc = new DOMParser().parseFromString(desktop, "text/html");
     expect(doc.title).toBe(name);
-    expect(doc.querySelector("#loading-brand")?.textContent).toBe(name);
-    expect(desktop).not.toContain("Octop");
+    const source = readFileSync(
+      resolve(dashboard, "../desktop/src/renderer/src/splash.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("shellBrandName");
+    expect(source).toContain("shixiaohe-mascot.png");
+    expect(source).toContain("dinfectome-logo.webp");
+    expect(source).not.toContain("styles.version");
   });
 
   it.each(["Header", "Sidebar"])(
@@ -104,8 +113,6 @@ describe("Geneseeq workbench identity", () => {
       expect(source).not.toContain("CurrentVersionBadge");
       if (layout === "Sidebar") {
         expect(source).not.toContain("AppVersionBadge");
-      } else {
-        expect(source).toContain("<AppVersionBadge");
       }
     },
   );
@@ -194,7 +201,7 @@ describe("Geneseeq workbench identity", () => {
     expect(new DOMParser().parseFromString(offline, "text/html").title).toBe(
       `${name} - 离线中`,
     );
-    expect(offline).toContain('src="/geneseeq-logo.png"');
+    expect(offline).toContain('src="geneseeq-icon-192.png"');
     expect(offline).not.toContain("Octop");
   });
 });

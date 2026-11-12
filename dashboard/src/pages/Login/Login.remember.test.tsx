@@ -10,8 +10,9 @@ vi.mock("../../api/modules/auth", () => ({
   authApi: {
     getAuthStatus: () => Promise.resolve({ setup_required: false }),
     getOauthStatus: () => Promise.resolve({ providers: [] }),
-    getLdapStatus: () => Promise.resolve({ enabled: false, display_name: "" }),
     getCaptcha: () => Promise.resolve({ provider: "none" }),
+    getLdapStatus: () => Promise.resolve({ enabled: false, display_name: "" }),
+    getPasskeyLoginStatus: () => Promise.resolve({ passwordless_login: false }),
   },
 }));
 
@@ -34,7 +35,7 @@ describe("Login remember-me checkbox", () => {
       </MemoryRouter>,
     );
 
-    const checkbox = screen.getByRole("checkbox", {
+    const checkbox = await screen.findByRole("checkbox", {
       name: /login\.remember|记住登录状态|Remember me/,
     });
     expect(checkbox).toBeChecked();

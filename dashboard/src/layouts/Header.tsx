@@ -1,7 +1,6 @@
 import { Layout } from "antd";
 import { Menu as MenuIcon } from "lucide-react";
 import PwaInstallPrompt from "../components/PwaInstallPrompt";
-import AppVersionBadge from "../components/AppVersionBadge";
 import Brand from "../components/Brand";
 import { typeSize } from "../utils/mobileTypeScale";
 
@@ -72,17 +71,6 @@ export default function Header({ onToggle, isMobile }: HeaderProps) {
           </button>
         )}
         <Brand />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            minWidth: 0,
-            flexShrink: 1,
-          }}
-        >
-          <AppVersionBadge isMobile />
-        </div>
       </div>
 
       <div

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from langchain_core.exceptions import ModelAuthenticationError, ModelPermissionDeniedError
+
 from octop.i18n.loader import lookup, tr
 from octop.infra.utils.locale import Locale
 
@@ -16,6 +18,11 @@ _PREFIX = "octop:"
 STREAM_STALL = f"{_PREFIX}stream_errors.stream_stall"
 RATE_LIMIT = f"{_PREFIX}stream_errors.rate_limit"
 AUTH = f"{_PREFIX}stream_errors.auth"
+MODEL_NOT_AUTHORIZED = f"{_PREFIX}stream_errors.model_not_authorized"
+
+# 403002「当前 API Key 无权访问模型 X」和 401「Key 无效」是两回事：
+# 前者换模型或加权限即可，后者要换 Key。混在一起会把用户引向错误的方向。
+_MODEL_SCOPE_RE = re.compile(r"not authorized to access model ([A-Za-z0-9._:-]+)", re.IGNORECASE)
 INSUFFICIENT_BALANCE = f"{_PREFIX}stream_errors.insufficient_balance"
 CONTEXT_LENGTH = f"{_PREFIX}stream_errors.context_length"
 RECURSION_LIMIT = f"{_PREFIX}stream_errors.recursion_limit"
@@ -244,6 +251,26 @@ def format_stream_error(exc: BaseException | str, locale: str | Locale = "en") -
     Tool / path failures (e.g. ``send_file_to_user`` missing file) pass through so
     the UI does not mislabel them as a model-call outage.
     """
+    current = exc if isinstance(exc, BaseException) else None
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        # 先区分「Key 无权访问这个模型」与「Key 本身无效」
+        scope_text = f"{current} {getattr(current, 'body', '') or ''}"
+        scope = _MODEL_SCOPE_RE.search(scope_text)
+        if scope is not None:
+            return _format_template(
+                "stream_errors.model_not_authorized",
+                locale,
+                model=scope.group(1),
+            )
+        if isinstance(current, (ModelAuthenticationError, ModelPermissionDeniedError)) or getattr(
+            current, "status_code", None
+        ) in (401, 403):
+            return tr(AUTH.removeprefix(_PREFIX), locale)
+        current = current.__cause__ or (
+            None if current.__suppress_context__ else current.__context__
+        )
     message = exception_display_message(exc)
     inner = unwrap_model_retry_message(message)
     classified = classify_stream_error_message(inner)
@@ -259,8 +286,8 @@ def format_stream_error(exc: BaseException | str, locale: str | Locale = "en") -
 def model_retry_failure_prompt(exc: Exception, locale: str | Locale = "en") -> str:
     """Return a model-visible recovery prompt after retries are exhausted.
 
-    Used as ``ModelRetryMiddleware.on_failure`` so the agent continues with a
-    specific cause instead of raising a generic retry-exhausted exception.
+    Retained for explicit legacy recovery-prompt callers. Active agents use
+    ``on_failure="error"`` and display failures outside model messages.
     """
     detail = unwrap_model_retry_message(exception_display_message(exc))
     classified = classify_stream_error_message(detail)

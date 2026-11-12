@@ -96,6 +96,11 @@ const post = (body?: unknown) => ({
   ...(body === undefined ? {} : { body: JSON.stringify(body) }),
 });
 export const benchmarkApi = {
+  acceptFeedback: (a: string, id: string, body: CaseInput) =>
+    request<BenchmarkCase>(
+      `${base(a)}/feedback/${encodeURIComponent(id)}/accept`,
+      post(body),
+    ),
   cases: (a: string) => request<BenchmarkCase[]>(`${base(a)}/cases`),
   createCase: (a: string, body: CaseInput) =>
     request<BenchmarkCase>(`${base(a)}/cases`, post(body)),

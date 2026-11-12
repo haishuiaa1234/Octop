@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OctopAgent } from "./AgentContext";
 import {
   agentsSnapshotEqual,
+  mapBridgeAgent,
   projectChatAgentOption,
   selectEnabledExperts,
 } from "./AgentContext";
@@ -32,6 +33,29 @@ function agent(
 }
 
 describe("selectEnabledExperts", () => {
+  it("refreshes snapshots when either sharing protocol changes", () => {
+    const current = agent("shared", "running", {
+      visibility: "groups",
+      group_ids: ["lab"],
+      shared_user_ids: [7],
+      shared_role_ids: ["reviewer"],
+    });
+    expect(
+      agentsSnapshotEqual([current], [{ ...current, group_ids: ["other"] }]),
+    ).toBe(false);
+    expect(
+      agentsSnapshotEqual([current], [{ ...current, visibility: "all" }]),
+    ).toBe(false);
+    expect(
+      agentsSnapshotEqual([current], [{ ...current, shared_user_ids: [8] }]),
+    ).toBe(false);
+    expect(
+      agentsSnapshotEqual(
+        [current],
+        [{ ...current, shared_role_ids: ["admin"] }],
+      ),
+    ).toBe(false);
+  });
   it("keeps only running experts when no resolved id is provided", () => {
     const agents = [
       agent("A", "running"),
@@ -99,6 +123,19 @@ describe("selectEnabledExperts", () => {
     );
     expect(result).toEqual(["S1", "G1"]);
   });
+
+  it("hides a connected remote expert the peer has stopped", () => {
+    const agents = [
+      agent("bridge:cid:aid", "stopped", {
+        bridge: true,
+        bridge_disconnected: false,
+      }),
+      agent("L1", "running"),
+    ];
+    expect(selectEnabledExperts(agents, null).map((a) => a.agent_id)).toEqual([
+      "L1",
+    ]);
+  });
 });
 
 describe("projectChatAgentOption", () => {
@@ -158,6 +195,142 @@ describe("projectChatAgentOption", () => {
       "bridge:cid:aid",
       "L1",
     ]);
+  });
+});
+
+describe("mapBridgeAgent", () => {
+  const conn = {
+    connection_id: "cid",
+    display_name: "Lab",
+    icon_name: "cloud",
+    inbound: false,
+    has_password: true,
+  };
+
+  it("keeps the peer expert's model, connectors, knowledge bases, and mode", () => {
+    const mapped = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:01AGENT",
+        name: "Peer",
+        kind: "expert",
+        default_model: " prov/peer-model ",
+        knowledge_base_ids: ["kb1", "  ", 3],
+        mcp_servers: ["mail"],
+        config: { conversation_mode: "plan", sandbox: "drop-me" },
+      },
+      conn,
+    );
+    expect(mapped.default_model).toBe("prov/peer-model");
+    expect(mapped.knowledge_base_ids).toEqual(["kb1"]);
+    expect(mapped.mcp_servers).toEqual(["mail"]);
+    expect(mapped.config).toEqual({ conversation_mode: "plan" });
+    expect(mapped.state).toBe("stopped");
+  });
+
+  it("keeps the peer storage backend and drops other config", () => {
+    const mapped = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:01AGENT",
+        config: {
+          conversation_mode: "craft",
+          sandbox: "drop-me",
+          backend: { type: "named", name: "peer-docker" },
+        },
+      },
+      conn,
+    );
+    expect(mapped.config).toEqual({
+      conversation_mode: "craft",
+      backend: { type: "named", name: "peer-docker" },
+    });
+  });
+
+  it("keeps a peer expert's running or stopped state", () => {
+    expect(
+      mapBridgeAgent({ agent_id: "bridge:cid:up", state: " running " }, conn)
+        .state,
+    ).toBe("running");
+    expect(
+      mapBridgeAgent({ agent_id: "bridge:cid:down", state: "stopped" }, conn)
+        .state,
+    ).toBe("stopped");
+  });
+
+  it("treats a shared cloud-collab link as read-only for the recipient", () => {
+    const mapped = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:01AGENT",
+        name: "Peer",
+        is_owner: true,
+        is_shared: false,
+      },
+      {
+        ...conn,
+        is_owner: false,
+        owner_username: "alice",
+        owner_display_name: "Alice",
+      },
+    );
+    expect(mapped.is_owner).toBe(false);
+    expect(mapped.is_shared).toBe(true);
+    expect(mapped.owner_username).toBe("Alice");
+  });
+
+  it("keeps a shared peer expert's default model for the chat picker", () => {
+    const mapped = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:01AGENT",
+        name: "Peer",
+        is_owner: false,
+        is_shared: true,
+        default_model: "prov/shared-default",
+      },
+      {
+        ...conn,
+        is_owner: false,
+        owner_username: "alice",
+        owner_display_name: "Alice",
+      },
+    );
+    expect(mapped.is_shared).toBe(true);
+    expect(mapped.is_owner).toBe(false);
+    expect(mapped.default_model).toBe("prov/shared-default");
+  });
+
+  it("keeps management when this user owns the link and the peer owns the expert", () => {
+    const mapped = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:01AGENT",
+        name: "Peer",
+        is_owner: true,
+        is_shared: false,
+      },
+      { ...conn, is_owner: true },
+    );
+    expect(mapped.is_owner).toBe(true);
+    expect(mapped.is_shared).toBe(false);
+  });
+
+  it("drops connectors on a peer team and ignores a missing composer payload", () => {
+    const team = mapBridgeAgent(
+      {
+        agent_id: "bridge:cid:team",
+        kind: "team",
+        mcp_servers: ["mail"],
+        knowledge_base_ids: ["kb1"],
+      },
+      conn,
+    );
+    expect(team.mcp_servers).toEqual([]);
+    expect(team.knowledge_base_ids).toEqual(["kb1"]);
+    expect(team.default_model).toBeNull();
+
+    const bare = mapBridgeAgent({ agent_id: "bridge:cid:bare" }, conn);
+    expect(bare.state).toBe("stopped");
+    expect(bare.default_model).toBeNull();
+    expect(bare.knowledge_base_ids).toBeUndefined();
+    expect(bare.mcp_servers).toBeUndefined();
+    expect(bare.config).toEqual({});
   });
 });
 

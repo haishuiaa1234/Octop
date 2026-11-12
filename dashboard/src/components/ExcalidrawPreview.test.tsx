@@ -57,6 +57,7 @@ describe("ExcalidrawPreview", () => {
       />,
     );
     await screen.findByTestId("diagram");
+    await waitFor(() => expect(resized).toBeTypeOf("function"));
     act(() => viewer.mock.lastCall![0].excalidrawAPI({ scrollToContent }));
     act(() => resized([], {} as ResizeObserver));
     await waitFor(() =>
@@ -69,6 +70,8 @@ describe("ExcalidrawPreview", () => {
 
   it("classifies diagrams as rich documents, not editable text", () => {
     expect(getDocKind("generated/FLOW.EXCALIDRAW")).toBe("excalidraw");
+    expect(getDocKind("legacy.DOC")).toBe("doc");
+    expect(getDocKind("report.docx")).toBe("word");
   });
 
   it("loads a diagram in view-only mode with embedded assets only", async () => {

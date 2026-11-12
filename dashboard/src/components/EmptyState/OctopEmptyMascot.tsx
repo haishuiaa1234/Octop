@@ -1,3 +1,4 @@
+import cx from "classnames";
 import { useServerBrand } from "../../hooks/useServerBrand";
 import {
   getDinfectomeMascotSrc,
@@ -30,7 +31,7 @@ export function OctopEmptyMascot({
       src={src}
       alt=""
       draggable={false}
-      className={className ? `${styles.mascot} ${className}` : styles.mascot}
+      className={cx(styles.mascot, className)}
       style={size === 160 ? undefined : { width: size, height: size }}
     />
   );

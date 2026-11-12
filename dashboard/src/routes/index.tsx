@@ -22,7 +22,7 @@ const ModelsPage = lazy(() => import("../pages/Settings/Models"));
 
 // Lazy-loaded pages — Admin
 const OctopAdminUsersPage = lazy(() => import("../pages/Admin/Users"));
-const AdminFeedbackPage = lazy(() => import("../pages/Admin/Feedback"));
+const EvaluationCenterPage = lazy(() => import("../pages/Benchmarks"));
 const AdminSecurityPage = lazy(() => import("../pages/Settings/Security"));
 const AdvancedSettingsPage = lazy(
   () => import("../pages/Settings/AdvancedSettings"),
@@ -79,6 +79,7 @@ export const pathToKey: Record<string, string> = {
   "/workbench": "workbench",
   "/workbench/terminal": "workbench",
   "/workbench/browser": "workbench",
+  "/workbench/cloud": "workbench",
   "/terminal": "workbench",
   "/remote-browser": "workbench",
   "/remote-desktop": "remote-desktop",
@@ -96,6 +97,7 @@ export const pathToKey: Record<string, string> = {
   // Admin
   "/admin/users": "admin-users",
   "/admin/feedback": "admin-feedback",
+  "/benchmarks": "admin-feedback",
   "/admin/websites": "admin-websites",
   "/admin/backend": "admin-storage",
   "/admin/plugins": "admin-plugins",
@@ -111,6 +113,7 @@ export const FULLSCREEN_PATHS = new Set([
   "/workbench",
   "/workbench/terminal",
   "/workbench/browser",
+  "/workbench/cloud",
   "/chat",
   "/remote-desktop",
   "/remote-desktop/desktop",
@@ -191,6 +194,7 @@ export const routeConfigs: RouteConfig[] = [
   { path: "/workbench", element: null },
   { path: "/workbench/terminal", element: null },
   { path: "/workbench/browser", element: null },
+  { path: "/workbench/cloud", element: null },
   {
     path: "/terminal",
     element: <RedirectPreserveSearch to="/workbench/terminal" />,
@@ -231,7 +235,11 @@ export const routeConfigs: RouteConfig[] = [
 
   // Admin (RequirePermission wrapper applied in MainLayout)
   { path: "/admin/users", element: <OctopAdminUsersPage /> },
-  { path: "/admin/feedback", element: <AdminFeedbackPage /> },
+  { path: "/benchmarks", element: <EvaluationCenterPage /> },
+  {
+    path: "/admin/feedback",
+    element: <Navigate to="/benchmarks?tab=candidates" replace />,
+  },
   {
     path: "/admin/sso",
     element: <Navigate to="/admin/users?tab=oidc" replace />,

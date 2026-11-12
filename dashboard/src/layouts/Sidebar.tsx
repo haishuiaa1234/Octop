@@ -3,16 +3,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import AvatarDropdown from "../components/AvatarDropdown";
-import { ArrowRightLeft, ChevronDown, X } from "lucide-react";
 import Brand from "../components/Brand";
+import { ArrowLeftRight, ChevronDown, X } from "lucide-react";
+import cx from "classnames";
 import { useLayoutMode } from "../context/LayoutModeContext";
+import { useDesktopChromeStyle } from "../hooks/useDesktopChrome";
 import { useUserRole } from "../hooks/useUserRole";
 import { useCurrentUser, useSetCurrentUser } from "../hooks/useCurrentUser";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
 import { prefetchRoute } from "../routes/prefetch";
 import { useServerCapabilities } from "../hooks/useServerCapabilities";
-import { useChatSidebarOpen } from "../pages/Chat/hooks/useChatSidebarState";
-import { EXPAND_CHAT_RAIL_EVENT } from "../pages/Chat/components/ChatSidebarPanel";
+import { EXPAND_CHAT_RAIL_EVENT } from "../pages/Chat/chatRailEvents";
 import {
   CHAT_HISTORY_RAIL_ID,
   OPEN_NAV_RECORDS_EVENT,
@@ -23,6 +24,12 @@ import MinimalRecordsHost from "./MinimalRecordsHost";
 import SidebarCollapsedIconNav from "./SidebarCollapsedIconNav";
 import { openChatGPT } from "./openChatGPT";
 import SidebarMinimalPaneToggle from "./SidebarMinimalPaneToggle";
+import { useChatSidebarOpen } from "../pages/Chat/hooks/useChatSidebarState";
+import {
+  isMacPlatform,
+  railShortcutAria,
+  railShortcutLabel,
+} from "../utils/railShortcuts";
 import { preferencesApi } from "../api/modules/preferences";
 import {
   COLLAPSED_WIDTH,
@@ -38,7 +45,6 @@ import styles from "./Sidebar.module.less";
 import { useWebsites } from "../pages/Websites/useWebsites";
 import { websiteNavSections } from "../pages/Websites/navigation";
 import { typeSize } from "../utils/mobileTypeScale";
-import { DESKTOP_DRAG_REGION_CLASS } from "../utils/desktopChrome";
 
 const NAV_GROUPS_STORAGE_KEY = "octop:sidebar-nav-groups";
 const LEGACY_COLLAPSED_GROUP_IDS: Record<string, string> = {
@@ -122,13 +128,27 @@ interface SidebarProps {
   isMobile?: boolean;
 }
 
+function historyRailLabels(
+  t: TFunction<"translation", undefined>,
+  open: boolean,
+) {
+  const label = open
+    ? t("chat.collapseHistorySidebar", "收起对话历史")
+    : t("chat.expandHistorySidebar", "展开对话历史");
+  return {
+    label,
+    hint: `${label} (${railShortcutLabel("toggle-history", isMacPlatform())})`,
+  };
+}
+
 function NavItemButton({
   item,
   active,
   isMobile,
   onNavigate,
-  onExpandChatRail,
-  showChatRailExpand,
+  onToggleChatRail,
+  showChatRailToggle,
+  chatRailOpen,
   role,
   hasUpdate,
   t,
@@ -137,14 +157,19 @@ function NavItemButton({
   active: boolean;
   isMobile?: boolean;
   onNavigate: (path: string) => void;
-  onExpandChatRail?: () => void;
-  showChatRailExpand?: boolean;
+  onToggleChatRail?: () => void;
+  showChatRailToggle?: boolean;
+  chatRailOpen?: boolean;
   role: string | null;
   hasUpdate: boolean;
   t: TFunction<"translation", undefined>;
 }) {
-  const showExpand = Boolean(
-    showChatRailExpand && item.key === "chat" && onExpandChatRail,
+  const showToggle = Boolean(
+    showChatRailToggle && item.key === "chat" && onToggleChatRail,
+  );
+  const { label: railLabel, hint: railHint } = historyRailLabels(
+    t,
+    Boolean(chatRailOpen),
   );
 
   return (
@@ -174,8 +199,8 @@ function NavItemButton({
             ? "var(--fn-sidebar-item-active-text)"
             : "var(--fn-text-secondary)",
           fontSize: typeSize(14, isMobile),
-          fontWeight: active ? 500 : 400,
-          paddingRight: showExpand ? 4 : 12,
+          fontWeight: 400,
+          paddingRight: showToggle ? 4 : 12,
         }}
       >
         <span
@@ -213,8 +238,6 @@ function NavItemButton({
               style={{
                 fontSize: typeSize(9, isMobile),
                 fontWeight: 600,
-                color: "#fff",
-                backgroundColor: "#ff4d4f",
                 padding: "1px 4px",
                 borderRadius: "2px",
                 whiteSpace: "nowrap",
@@ -229,18 +252,20 @@ function NavItemButton({
           )}
         </span>
       </button>
-      {showExpand ? (
+      {showToggle ? (
         <button
           type="button"
           className={styles.chatRailExpandBtn}
           onClick={(e) => {
             e.stopPropagation();
-            onExpandChatRail?.();
+            onToggleChatRail?.();
           }}
-          aria-label={t("chat.expandHistorySidebar", "展开对话历史")}
-          title={t("chat.expandHistorySidebar", "展开对话历史")}
+          aria-expanded={Boolean(chatRailOpen)}
+          aria-label={railLabel}
+          aria-keyshortcuts={railShortcutAria("toggle-history")}
+          title={railHint}
         >
-          <ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />
+          <ArrowLeftRight size={14} strokeWidth={1.8} aria-hidden />
         </button>
       ) : null}
     </div>
@@ -251,8 +276,9 @@ function NavList({
   sections,
   selectedKey,
   onNavigate,
-  onExpandChatRail,
-  showChatRailExpand,
+  onToggleChatRail,
+  showChatRailToggle,
+  chatRailOpen,
   isMobile,
   isGroupCollapsed,
   toggleGroup,
@@ -263,8 +289,9 @@ function NavList({
   sections: NavSection[];
   selectedKey: string;
   onNavigate: (path: string) => void;
-  onExpandChatRail?: () => void;
-  showChatRailExpand?: boolean;
+  onToggleChatRail?: () => void;
+  showChatRailToggle?: boolean;
+  chatRailOpen?: boolean;
   isMobile?: boolean;
   isGroupCollapsed: (groupId: string) => boolean;
   toggleGroup: (groupId: string) => void;
@@ -320,8 +347,9 @@ function NavList({
                     active={selectedKey === item.key}
                     isMobile={isMobile}
                     onNavigate={onNavigate}
-                    onExpandChatRail={onExpandChatRail}
-                    showChatRailExpand={showChatRailExpand}
+                    onToggleChatRail={onToggleChatRail}
+                    showChatRailToggle={showChatRailToggle}
+                    chatRailOpen={chatRailOpen}
                     role={role}
                     hasUpdate={hasUpdate}
                     t={t}
@@ -346,9 +374,10 @@ function NavList({
               <ChevronDown
                 size={12}
                 strokeWidth={2}
-                className={`${styles.navGroupChevron} ${
-                  groupCollapsed ? styles.navGroupChevronFolded : ""
-                }`}
+                className={cx(
+                  styles.navGroupChevron,
+                  groupCollapsed && styles.navGroupChevronFolded,
+                )}
                 aria-hidden
               />
             </button>
@@ -362,8 +391,9 @@ function NavList({
                     active={selectedKey === item.key}
                     isMobile={isMobile}
                     onNavigate={onNavigate}
-                    onExpandChatRail={onExpandChatRail}
-                    showChatRailExpand={showChatRailExpand}
+                    onToggleChatRail={onToggleChatRail}
+                    showChatRailToggle={showChatRailToggle}
+                    chatRailOpen={chatRailOpen}
                     role={role}
                     hasUpdate={hasUpdate}
                     t={t}
@@ -396,6 +426,9 @@ export default function Sidebar({
   const isMinimal = layoutMode === "minimal";
   const onChatPath = isChatPath(location.pathname);
   const websites = useWebsites();
+  const [chatSidebarOpen, setChatSidebarOpen] = useChatSidebarOpen();
+  const showChatRailToggle = !isMinimal;
+  const chatRailOpen = showChatRailToggle && onChatPath && chatSidebarOpen;
   const catalog = useMemo(
     () => buildNavSections(user, { mobileEnabled }),
     [user, mobileEnabled],
@@ -429,10 +462,9 @@ export default function Sidebar({
       cancelled = true;
     };
   }, [user]);
-  const [chatSidebarOpen, setChatSidebarOpen] = useChatSidebarOpen();
-  const showChatRailExpand = !isMinimal && !chatSidebarOpen;
-
   const isRailCollapsed = collapsed && !isMobile;
+  const desktopChrome = useDesktopChromeStyle();
+  const reserveTrafficLightBand = desktopChrome === "mac";
 
   const selectMinimalPane = useCallback(
     (pane: MinimalNavPane, opts?: { expand?: boolean }) => {
@@ -476,26 +508,6 @@ export default function Sidebar({
     if (isMobile) onToggle();
   };
 
-  const handleExpandChatRail = useCallback(() => {
-    if (isMinimal) {
-      selectMinimalPane("records", { expand: true });
-      return;
-    }
-    window.dispatchEvent(new Event(EXPAND_CHAT_RAIL_EVENT));
-    setChatSidebarOpen(true);
-    if (!window.location.pathname.startsWith("/chat")) {
-      navigate("/chat");
-    }
-    if (isMobile) onToggle();
-  }, [
-    isMinimal,
-    isMobile,
-    navigate,
-    onToggle,
-    selectMinimalPane,
-    setChatSidebarOpen,
-  ]);
-
   const brandInner = (
     <Brand variant={isRailCollapsed ? "compact" : "navigation"} />
   );
@@ -505,7 +517,11 @@ export default function Sidebar({
       className={styles.sidebarUser}
       style={{
         flexShrink: 0,
-        padding: isRailCollapsed ? "10px 0" : "10px 12px",
+        // Collapsed avatar is centered, so its left gap is half the leftover
+        // rail width. The same gap sits under it. 32px is `.accountAvatar`.
+        padding: isRailCollapsed
+          ? `10px 0 calc((max(${COLLAPSED_WIDTH}px, var(--window-controls-inset-start, 0px)) - 32px) / 2)`
+          : "10px 12px",
         display: "flex",
         justifyContent: isRailCollapsed ? "center" : "stretch",
       }}
@@ -545,6 +561,16 @@ export default function Sidebar({
     }
   }, [isMinimal, settingsPaneLabel, minimalPane, setMinimalPane]);
 
+  const handleToggleChatRail = useCallback(() => {
+    if (onChatPath && chatSidebarOpen) {
+      setChatSidebarOpen(false);
+      return;
+    }
+    window.dispatchEvent(new Event(EXPAND_CHAT_RAIL_EVENT));
+    setChatSidebarOpen(true);
+    if (!onChatPath) navigate("/chat");
+  }, [chatSidebarOpen, navigate, onChatPath, setChatSidebarOpen]);
+
   const paneToggle = settingsPaneLabel ? (
     <SidebarMinimalPaneToggle
       settingsLabel={settingsPaneLabel}
@@ -555,28 +581,27 @@ export default function Sidebar({
   ) : null;
 
   const classicNavBody = isRailCollapsed ? (
-    <div style={{ padding: "8px 0" }}>
-      <SidebarCollapsedIconNav
-        items={navSections.flatMap((section) => {
-          if (section.id && isGroupCollapsed(section.id)) {
-            return [];
-          }
-          return section.items;
-        })}
-        selectedKey={selectedKey}
-        onNavigate={handleNavigate}
-        role={role}
-        hasUpdate={hasUpdate}
-        t={t}
-      />
-    </div>
+    <SidebarCollapsedIconNav
+      items={navSections.flatMap((section) => {
+        if (section.id && isGroupCollapsed(section.id)) {
+          return [];
+        }
+        return section.items;
+      })}
+      selectedKey={selectedKey}
+      onNavigate={handleNavigate}
+      role={role}
+      hasUpdate={hasUpdate}
+      t={t}
+    />
   ) : (
     <NavList
       sections={navSections}
       selectedKey={selectedKey}
       onNavigate={handleNavigate}
-      onExpandChatRail={handleExpandChatRail}
-      showChatRailExpand={showChatRailExpand}
+      onToggleChatRail={handleToggleChatRail}
+      showChatRailToggle={showChatRailToggle}
+      chatRailOpen={chatRailOpen}
       isMobile={isMobile}
       isGroupCollapsed={isGroupCollapsed}
       toggleGroup={toggleGroup}
@@ -586,7 +611,7 @@ export default function Sidebar({
   const minimalNavBody = (
     <div className={styles.minimalNavBody}>
       {isRailCollapsed ? (
-        <div style={{ padding: "8px 0", flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           <SidebarCollapsedIconNav
             items={primaryItems}
             selectedKey={selectedKey}
@@ -614,8 +639,6 @@ export default function Sidebar({
               sections={navSections}
               selectedKey={selectedKey}
               onNavigate={handleNavigate}
-              onExpandChatRail={handleExpandChatRail}
-              showChatRailExpand={false}
               isMobile={isMobile}
               isGroupCollapsed={isGroupCollapsed}
               toggleGroup={toggleGroup}
@@ -662,6 +685,7 @@ export default function Sidebar({
   if (isMobile) {
     return (
       <div
+        className={styles.mobileDrawer}
         style={{
           position: "fixed",
           top: 0,
@@ -753,54 +777,68 @@ export default function Sidebar({
   }
 
   // Desktop: custom sidebar with icon-only collapsed mode.
-  // Right border is drawn by MainLayout's RailEdgeControl.
+  // The trailing divider is MainLayout's RailEdgeControl, not a border here.
   return (
-    <div
-      style={{
-        width: isRailCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
-        minWidth: isRailCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
-        background: "var(--fn-sidebar-bg)",
-        borderRight: "none",
-        transition:
-          "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-        alignSelf: "stretch",
-        minHeight: 0,
-      }}
-    >
+    <div className={styles.navRailHost}>
       <div
-        className={`${styles.sidebarBrand} ${DESKTOP_DRAG_REGION_CLASS}`}
+        className={styles.navRail}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          minWidth: 0,
-          padding: isRailCollapsed ? "12px 0" : "14px 14px 10px",
-          justifyContent: isRailCollapsed ? "center" : "flex-start",
-          flexShrink: 0,
-        }}
-      >
-        {brandInner}
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: isMinimal && minimalPane === "records" ? "hidden" : "auto",
-          overflowX: "hidden",
+          width: isRailCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+          // On macOS the collapsed rail is the traffic-light column.
+          // Icons, logo and footer center on it; the shell centers the
+          // lights on the same line.
+          minWidth: `max(${
+            isRailCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH
+          }px, var(--window-controls-inset-start, 0px))`,
+          background: "var(--fn-sidebar-bg)",
+          borderRight: "none",
+          transition:
+            "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          flexShrink: 0,
+          alignSelf: "stretch",
+          minHeight: 0,
         }}
       >
-        {navScrollBody}
-      </div>
+        {/* macOS only: room for the traffic lights. Windows caption is a
+            separate full-width row above the shell, so no blank here. */}
+        {reserveTrafficLightBand ? (
+          <div className={styles.navChrome} aria-hidden />
+        ) : null}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            minWidth: 0,
+            // Same top inset either way, so expanding only widens the bar.
+            padding: isRailCollapsed ? "10px 0 12px" : "10px 8px 10px 14px",
+            justifyContent: isRailCollapsed ? "center" : "flex-start",
+            flexShrink: 0,
+          }}
+        >
+          {brandInner}
+        </div>
+        <div
+          className={isRailCollapsed ? styles.navScrollCollapsed : undefined}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY:
+              isMinimal && minimalPane === "records" ? "hidden" : "auto",
+            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {navScrollBody}
+        </div>
 
-      {userFooter}
-      {customizer}
+        {userFooter}
+        {customizer}
+      </div>
     </div>
   );
 }

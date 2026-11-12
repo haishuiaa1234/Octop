@@ -23,6 +23,13 @@ class FeedbackRepo:
             ).fetchone()
         return {key: row[key] for key in _FIELDS.split(",")} if row else None
 
+    def get_by_id(self, feedback_id: str) -> dict[str, Any] | None:
+        with self._db.connect() as conn:
+            row = conn.execute(
+                f"SELECT {_FIELDS} FROM answer_feedback WHERE feedback_id=?", (feedback_id,)
+            ).fetchone()
+        return {key: row[key] for key in _FIELDS.split(",")} if row else None
+
     def save(self, data: dict[str, Any]) -> dict[str, Any]:
         values = {**data, "feedback_id": new_ulid(), "created_at": now_ts(), "updated_at": now_ts()}
         with self._db.transaction() as conn:

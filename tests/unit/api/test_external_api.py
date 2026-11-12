@@ -59,7 +59,10 @@ async def test_external_api_task_returns_result_and_request_id_is_idempotent() -
     )
 
     class _Processor:
-        async def iter_turn_chunks(self, _msg):
+        async def iter_turn_chunks(self, msg):
+            assert msg.tenant_id == "agent-1"
+            assert msg.metadata["thread_id"] == "thread-1"
+            assert msg.metadata["session_key"] == "external-api:session-1"
             yield {"type": "token", "content": "需求"}
             yield {"type": "token", "content": "分析"}
             yield {"type": "done"}
@@ -84,3 +87,29 @@ async def test_external_api_task_returns_result_and_request_id_is_idempotent() -
     assert duplicate is task
     assert task.status == "completed"
     assert task.result == "需求分析"
+
+
+@pytest.mark.asyncio
+async def test_external_api_task_marks_gateway_error_failed() -> None:
+    runtime = ExternalApiRuntime()
+    session = SimpleNamespace(
+        session_id="session-1",
+        agent_id="agent-1",
+        user_id=1,
+        thread_id="thread-1",
+        request_tasks={},
+    )
+
+    class Processor:
+        async def iter_turn_chunks(self, _msg):
+            yield {"type": "token", "content": "partial"}
+            yield {"type": "error", "message": "provider failed"}
+
+    server = SimpleNamespace(
+        app_runtime=SimpleNamespace(gateway=SimpleNamespace(processor=Processor()))
+    )
+    task = runtime.submit(server=server, session=session, message="question", request_id=None)
+    await asyncio.gather(*runtime._tasks)
+    assert task.status == "failed"
+    assert task.result is None
+    assert task.error == "provider failed"

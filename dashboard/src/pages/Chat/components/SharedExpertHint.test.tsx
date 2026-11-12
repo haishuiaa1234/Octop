@@ -12,22 +12,35 @@ const agent = {
 
 describe("SharedExpertHint", () => {
   it("uses team wording for a shared team", () => {
-    render(<SharedExpertHint agent={{ ...agent, kind: "team" }} />);
+    render(
+      <SharedExpertHint agent={{ ...agent, kind: "team" }}>
+        <span>avatar</span>
+      </SharedExpertHint>,
+    );
     expect(screen.getByLabelText("chat.sharedTeam.banner")).toBeInTheDocument();
-    expect(screen.getByText("chat.sharedExpert.flag")).toBeInTheDocument();
+    expect(screen.getByText("avatar")).toBeInTheDocument();
   });
 
   it("retains expert wording for a shared solo expert", () => {
-    render(<SharedExpertHint agent={{ ...agent, kind: "expert" }} />);
+    render(
+      <SharedExpertHint agent={{ ...agent, kind: "expert" }}>
+        <span>avatar</span>
+      </SharedExpertHint>,
+    );
     expect(
       screen.getByLabelText("chat.sharedExpert.banner"),
     ).toBeInTheDocument();
   });
 
   it("does not label the owner's team as a shared viewer", () => {
-    const { container } = render(
-      <SharedExpertHint agent={{ ...agent, kind: "team", is_owner: true }} />,
+    render(
+      <SharedExpertHint agent={{ ...agent, kind: "team", is_owner: true }}>
+        <span>avatar</span>
+      </SharedExpertHint>,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByLabelText("chat.sharedTeam.banner"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("avatar")).toBeInTheDocument();
   });
 });
